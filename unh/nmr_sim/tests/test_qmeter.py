@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from nmr_sim.qmeter import (C_M_PER_S, QMeter, QMeterParams, cable_input_impedance,
+from unh.nmr_sim.qmeter import (C_M_PER_S, QMeter, QMeterParams, cable_input_impedance,
                             coil_impedance, omega)
 
 F0 = 32.7

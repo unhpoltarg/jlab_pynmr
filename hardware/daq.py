@@ -49,17 +49,16 @@ class DAQConnection():
                 self.message = 'NI-DAQ Connection failed.'
                 self.name = 'Connection failed.'
                 print(e)
-
-        # --- nmr_sim hook (1/3): simulated Test source (settings test_source: sim).
-        # Remove this branch to drop nmr_sim; replay below is unchanged.
+            
+            
+        # >>> UNH-HOOK nmr-sim: simulated Test source when settings test_source is 'sim' (1/3)
         elif self.daq_type=='Test' and self.config.settings.get('test_source', 'replay')=='sim':
-            from nmr_sim.adapter import SimDAQ   # lazy: replay never imports nmr_sim
+            from unh.nmr_sim.adapter import SimDAQ   # lazy: replay never imports nmr_sim
             n = self.config.settings['tune_per_chunk' if tune_mode else 'num_per_chunk']
             self.sim = SimDAQ(self.config.settings['nmr_sim'], self.config.freq_list, n)
             self.message, self.name = self.sim.message, self.sim.name
-        # --- end nmr_sim hook (1/3)
-
-        elif self.daq_type=='Test':
+        # <<< UNH-HOOK nmr-sim (1/3)
+        elif self.daq_type=='Test':          
             #v, self.test_phase, self.test_diode = np.loadtxt("app/test_data.txt", unpack=True) 
             with open(self.config.settings['test_signal'], 'r') as file:
                 for line in file:
@@ -67,12 +66,14 @@ class DAQConnection():
                     self.test_phase = np.array(event['phase'])
                     self.test_diode = np.array(event['diode'])
                     self.test_freqs = np.array(event['freq_list'])
+            # >>> UNH-HOOK freq-window: replay follows the requested window
             # Return the recorded signal at the requested frequency points, as hardware would:
             # interpolate within the recorded range; outside it, hold the nearest edge value (flat baseline)
             freqs = self.config.freq_list
             self.test_in_range = (freqs >= self.test_freqs.min()) & (freqs <= self.test_freqs.max())
             self.test_phase = np.interp(freqs, self.test_freqs, self.test_phase)
             self.test_diode = np.interp(freqs, self.test_freqs, self.test_diode)
+            # <<< UNH-HOOK freq-window
             self.message = 'DAQ Test mode.'
             self.name = 'Test'
             
@@ -122,13 +123,12 @@ class DAQConnection():
             return self.tcp.get_chunk()   
             
         elif self.daq_type=='NIDAQ':          
-            return self.ni.get_chunk()
-
-        # --- nmr_sim hook (2/3): chunks from the simulator when enabled
+            return self.ni.get_chunk()            
+            
+        # >>> UNH-HOOK nmr-sim: chunks from the simulator when enabled (2/3)
         elif self.daq_type=='Test' and getattr(self, 'sim', None) is not None:
             return self.sim.get_chunk()
-        # --- end nmr_sim hook (2/3)
-
+        # <<< UNH-HOOK nmr-sim (2/3)
         elif self.daq_type=='Test':
             if self.tune_mode:
                 num_in_chunk = self.config.settings['tune_per_chunk']
@@ -146,11 +146,11 @@ class DAQConnection():
         if self.daq_type=='FPGA':
             self.udp.dac_v = dac_v 
             self.udp.dac_c = dac_c    
-            return self.udp.set_register()
-        # --- nmr_sim hook (3/3): Tune-tab DACs act on the simulated Q-meter
+            return self.udp.set_register()        
+        # >>> UNH-HOOK nmr-sim: Tune-tab DACs act on the simulated Q-meter (3/3)
         if self.daq_type=='Test' and getattr(self, 'sim', None) is not None:
             return self.sim.set_dac(dac_v, dac_c)
-        # --- end nmr_sim hook (3/3)
+        # <<< UNH-HOOK nmr-sim (3/3)
         if self.daq_type=='Test':
             #print("DAC", dac_v, dac_c)
             return True

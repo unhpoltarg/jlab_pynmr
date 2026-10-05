@@ -9,9 +9,9 @@ import numpy as np
 import pytest
 from scipy.signal import hilbert
 
-from nmr_sim.lineshape import FastModel, MATERIALS, ratio_P, ratio_Q, r_of_P
-from nmr_sim.susceptibility import DISPERSION_SIGN
-from nmr_sim.timeline import p_te, H_J_S, KB_J_PER_K
+from unh.nmr_sim.lineshape import FastModel, MATERIALS, ratio_P, ratio_Q, r_of_P
+from unh.nmr_sim.susceptibility import DISPERSION_SIGN
+from unh.nmr_sim.timeline import p_te, H_J_S, KB_J_PER_K
 
 ND3 = "deuterated ammonia (Dec 2024)"
 DBUT = "irradiated d-butanol (Dec 2025, 13th/15th)"
@@ -19,7 +19,7 @@ DBUT = "irradiated d-butanol (Dec 2025, 13th/15th)"
 
 def _source_module():
     root = os.environ.get("MCCLELLAN_FITS_DIR")
-    root = Path(root) if root else Path(__file__).resolve().parents[3] / "optimized-mcclellan-fits"
+    root = Path(root) if root else Path(__file__).resolve().parents[4] / "optimized-mcclellan-fits"
     path = root / "fitter" / "deuteron_model.py"
     if not path.exists():
         pytest.skip(f"source model not found at {path}")

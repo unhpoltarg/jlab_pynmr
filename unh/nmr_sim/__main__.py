@@ -1,6 +1,6 @@
 """Print the configured simulation: Q-meter summary, calibration and timeline.
 
-    python -m nmr_sim [--config pynmr_config.yaml] [--profile TestSim]
+    python -m unh.nmr_sim [--config pynmr_config.yaml] [--profile TestSim]
 
 Reads the YAML directly (no PyNMR imports). The sweep axis is rebuilt from the
 profile's default channel with the standard 512-step profile.
@@ -28,7 +28,7 @@ def _profile_settings(config_file, profile):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="python -m nmr_sim", description=__doc__,
+    ap = argparse.ArgumentParser(prog="python -m unh.nmr_sim", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default="pynmr_config.yaml")
     ap.add_argument("--profile", default="TestSim")

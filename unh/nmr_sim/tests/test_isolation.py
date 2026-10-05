@@ -27,9 +27,9 @@ def test_no_pynmr_imports_in_source():
 
 
 def test_adapter_import_pulls_in_nothing_from_pynmr():
-    code = ("import sys, nmr_sim.adapter; "
+    code = ("import sys, unh.nmr_sim.adapter; "
             f"bad = sorted(m for m in sys.modules if m.split('.')[0] in {sorted(FORBIDDEN)!r}); "
             "print(','.join(bad))")
-    out = subprocess.run([sys.executable, "-c", code], cwd=PKG.parent,
+    out = subprocess.run([sys.executable, "-c", code], cwd=PKG.parents[1],
                          capture_output=True, text=True, check=True)
     assert out.stdout.strip() == ""

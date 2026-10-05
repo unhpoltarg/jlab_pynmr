@@ -31,8 +31,12 @@ This summary says **where** each change lives. The three topic branches
    - The Run tab now sets the centre frequency and half-width during a cooldown, applied between events.
    - Each event records its own window.
    - `Test` mode now resamples the recorded signal onto the requested window.
-4. **Deuteron NMR simulator** (`nmr_sim/`, profile `TestSim`): a physics-based alternative to replaying one recorded event.
+4. **Deuteron NMR simulator** (`unh/nmr_sim/`, profile `TestSim`): a physics-based alternative to replaying one recorded event.
 5. **Data streamer** (`unh/data_streamer.py`): sends each finished event's line to LabView-NMR-Fitter. Off by default.
+6. **All three merged into `unh`, and every UNH change labelled.**
+   - Each change to a JLab file is marked `UNH-HOOK <feature>`.
+   - `python -m unh.strip_unh` removes any feature, or all of them, and restores JLab's code.
+   - `unh/tests/test_hooks.py` fails on any unlabelled change. See `unh/README.md`.
 
 **Commits** (base before this session: `692e3ff`, upstream "Bug fixes")
 | Commit | Branch | What |
@@ -41,35 +45,27 @@ This summary says **where** each change lives. The three topic branches
 | `301eb15` | `unh` | Changelog: `unh` made the default branch |
 | `059fd62` | `unh` | Changelog: push guard allows `unh_dev/<topic>` |
 | `cf25a86` | `unh_dev/interactive_freq_window` | Interactive NMR window, Test-mode resampling, tests, LabVIEW notes |
-| (this commit) | `unh_dev/interactive_freq_window` | This summary |
+| `f8f1fcc` | `unh_dev/interactive_freq_window` | First version of this summary |
+| `5b0e0ea` | `unh_dev/data_streamer` | Data streamer (`unh/`) |
+| `f21810f` | `unh_dev/test_nmr_sim` | nmr_sim and the `TestSim` profile |
+| `78f11a2` | `unh` | Merge of `unh_dev/data_streamer` |
+| `5e1823e` | `unh` | Merge of `unh_dev/test_nmr_sim` |
+| `d41a0ec` | `unh` | Merge of `unh_dev/interactive_freq_window` |
+| (next) | `unh_dev/unh_hooks`, then merged into `unh` | `UNH-HOOK` labels, nmr_sim moved into `unh/`, `strip_unh.py`, `test_hooks.py`, this summary updated |
 
-**Files changed in git** (line numbers as of `cf25a86`; a fast-forward merge keeps them)
-| File | Where | What |
+**Where each change lives**
+| Feature (tag) | UNH files | Hooks in JLab files |
 |---|---|---|
-| `gui/main_window.py` | `__init__` L73 | New `self.pending_window` (window waiting for the next event) |
-| | `save_session` L217 | Saves `cent_freq` and `mod_freq` to the session yaml |
-| | `channel_change` L369 | Copies the channel dict; restores the session window at startup; uses `replace_config` |
-| | `replace_config` L385 (new) | Swaps in a new Config, carrying over Sweeps, CC and tune voltages |
-| | `run_in_progress` L402 (new) | True while sweeps run or another event will start |
-| | `set_window` L408 (new) | Requests a window: applied now if idle, otherwise pending |
-| | `apply_pending_window` L423 (new) | New Config, reprograms the R&S, logs the change |
-| `gui/tabs/run_tab.py` | `__init__` L159 (`# NMR window:` block) | Center Freq and Half-width inputs plus the Apply Window button in the NMR Settings box |
-| | `start_thread` L399 | Applies a pending window before `new_event()` |
-| | `combo_changed` L430 | Resets the window fields to the selected channel's values |
-| | `update_window_label` L437 (new) | Shows the active window and any pending one |
-| | `window_apply_pushed` L446 (new) | Validates the inputs, then calls `MainWindow.set_window` |
-| `hardware/daq.py` | `DAQConnection.__init__` Test branch L62 | Interpolates the recorded test signal onto the window; holds edge values outside it |
-| `tests/test_freq_window.py` | new file, 7 tests | Window axis, FPGA table, idle/pending apply, no config mutation, carry-over, Test resampling |
-| `notes/labview_panel_differences.md` | new file | UNH LabVIEW panel features to bring over later |
-| `changelog/changelog.md` | new file | This changelog |
-| `.gitignore` | L23–25 | Ignores `.claude/CLAUDE.md` and `.claude/reference/` |
-| `.claude/settings.local.json` | `permissions.deny` | Stops Claude Code skipping hooks, force-pushing, or pushing to `upstream` |
+| `freq-window` | `unh/tests/test_freq_window.py` (7 tests) | `gui/main_window.py`: `__init__` (`pending_window`), `save_session`, `channel_change`, and the new `replace_config`, `run_in_progress`, `set_window`, `apply_pending_window`. `gui/tabs/run_tab.py`: `__init__` (window inputs), `start_thread`, `combo_changed`, and the new `update_window_label`, `window_apply_pushed`. `hardware/daq.py`: Test replay resampled onto the window. |
+| `data-streamer` | `unh/data_streamer.py`, `unh/data_streamer.yaml`, `unh/tests/test_data_streamer.py` (21 tests) | `gui/main_window.py`: `__init__`, one block |
+| `nmr-sim` | `unh/nmr_sim/` (38 tests) | `hardware/daq.py`: three blocks. `pynmr_config.yaml`: the `TestSim` profile. `.gitignore`: two lines. |
+| `fork-tools` | none | `.gitignore`: the local Claude notes |
+| (fork as a whole) | `changelog/changelog.md`, `notes/labview_panel_differences.md`, `unh/README.md`, `unh/strip_unh.py`, `unh/tests/test_hooks.py` (9 tests) | `.claude/settings.local.json`, `permissions.deny`: stops Claude Code skipping hooks, force-pushing, or pushing to `upstream` |
 
-**To find these after merging:**
-- `git log --oneline 692e3ff..unh` lists this session's commits.
-- `git show cf25a86` shows the full window change.
-- `git diff 692e3ff..unh -- <file>` shows one file's changes.
-- `git grep -n "pending_window\|NMR window"` finds the window code.
+**To find these:**
+- `git grep -n "UNH-HOOK"` lists every hook; `git grep -n "UNH-HOOK freq-window"` lists one feature.
+- `python -m unh.strip_unh` (a dry run) lists them by file, line and feature.
+- `git log --oneline 692e3ff..unh` lists this session's commits; `git diff 692e3ff..unh -- <file>` shows one file's changes.
 
 **Local only, not in git** (repeat these in any new clone; the details are in the entries below)
 - `.git/hooks/pre-push`: allows only `unh` and `unh_dev/*` to go to unhpoltarg.
@@ -92,6 +88,42 @@ This summary says **where** each change lives. The three topic branches
 - **Decision pending:** carry CC over on channel change, or load a per-channel CC.
 - **Existing exit crash:** `core/thread_manager.py:182`, after a run. It also happens on unmodified `unh`, and data is saved first.
 - **Other known bugs:** "Use TE" writes to a `te/` folder that doesn't exist; `explore_tab.py` uses a PyQt5-only call; pytest can't collect anything under `utils/`.
+
+### Merged the three topic branches; every UNH change labelled and removable (branch `unh_dev/unh_hooks`)
+
+**What**
+- **Merged into `unh`** with `--no-ff`, least invasive first: `unh_dev/data_streamer`, `unh_dev/test_nmr_sim`,
+  then `unh_dev/interactive_freq_window`. Only this changelog conflicted; the entries were combined by hand.
+- **One label for every UNH change to a JLab file:** `# >>> UNH-HOOK <feature>` ... `# <<< UNH-HOOK <feature>`
+  blocks, or a trailing `# UNH-HOOK <feature>` on a single added line.
+  - The features are `freq-window`, `data-streamer`, `nmr-sim` and `fork-tools`.
+  - A JLab line that a block replaced is kept inside the block as `# JLab: <line>`.
+  - This replaces the older `UNH-DATA-STREAMER` and `nmr_sim hook` tags.
+  - The window feature had no labels before. Its code is unchanged except in two places:
+    - `save_session` now adds the window to the saved dict after JLab's dict is built, so JLab's lines stay as they were.
+    - Whitespace-only edits to JLab lines in `gui/tabs/run_tab.py` and `hardware/daq.py` were undone.
+- **Moved into `unh/`:** `nmr_sim/` is now `unh/nmr_sim/` (`python -m unh.nmr_sim`;
+  the `hardware/daq.py` hook imports `unh.nmr_sim.adapter`), and `tests/test_freq_window.py` is now
+  `unh/tests/test_freq_window.py`. Imports and relative paths in the tests were updated to match.
+- **New `unh/strip_unh.py`:** removes all UNH changes, or one feature with `--feature <tag>`. It deletes
+  the blocks, puts the `# JLab:` lines back, and deletes the feature's files (or all of `unh/`).
+  It does a dry run unless given `--apply`, and needs only the standard library.
+- **New `unh/tests/test_hooks.py`:** strips the hooks from every JLab file this branch changed and
+  checks that the result equals JLab's version (the merge-base with `upstream/master`). Unlabelled
+  edits fail, and so do new, deleted or renamed JLab files.
+  - Exempt: UNH-owned paths (`unh/`, `changelog/`, `notes/`, `.claude/`) and the files PyNMR rewrites
+    while it runs.
+  - It also checks the marker syntax, that each feature's files exist, and that Python still compiles
+    after removing each feature.
+- **Docs:** `unh/README.md` now has the feature list, the labelling rules and the removal steps.
+  `unh/nmr_sim/README.md` and the data streamer's hook tests use the new tags.
+
+**Why**
+These features change JLab's code for UNH purposes. With one tag, `git grep -n "UNH-HOOK"` finds every
+change, and the `# JLab:` lines mean the original code can be put back exactly, not just deleted around.
+The test keeps that true for future work, and the script turns removal into one command. A removal
+drill confirmed the result: after stripping everything, the only differences from JLab's code were
+`changelog/`, `notes/` and `.claude/settings.local.json`, and the `Test` profile still ran.
 
 ### Deuteron NMR simulator as an alternative Test-mode data source (`nmr_sim/`, profile `TestSim`)
 
