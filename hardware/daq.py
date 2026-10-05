@@ -49,9 +49,17 @@ class DAQConnection():
                 self.message = 'NI-DAQ Connection failed.'
                 self.name = 'Connection failed.'
                 print(e)
-            
-            
-        elif self.daq_type=='Test':          
+
+        # --- nmr_sim hook (1/3): simulated Test source (settings test_source: sim).
+        # Remove this branch to drop nmr_sim; replay below is unchanged.
+        elif self.daq_type=='Test' and self.config.settings.get('test_source', 'replay')=='sim':
+            from nmr_sim.adapter import SimDAQ   # lazy: replay never imports nmr_sim
+            n = self.config.settings['tune_per_chunk' if tune_mode else 'num_per_chunk']
+            self.sim = SimDAQ(self.config.settings['nmr_sim'], self.config.freq_list, n)
+            self.message, self.name = self.sim.message, self.sim.name
+        # --- end nmr_sim hook (1/3)
+
+        elif self.daq_type=='Test':
             #v, self.test_phase, self.test_diode = np.loadtxt("app/test_data.txt", unpack=True) 
             with open(self.config.settings['test_signal'], 'r') as file:
                 for line in file:
@@ -108,8 +116,13 @@ class DAQConnection():
             return self.tcp.get_chunk()   
             
         elif self.daq_type=='NIDAQ':          
-            return self.ni.get_chunk()            
-            
+            return self.ni.get_chunk()
+
+        # --- nmr_sim hook (2/3): chunks from the simulator when enabled
+        elif self.daq_type=='Test' and getattr(self, 'sim', None) is not None:
+            return self.sim.get_chunk()
+        # --- end nmr_sim hook (2/3)
+
         elif self.daq_type=='Test':
             if self.tune_mode:
                 num_in_chunk = self.config.settings['tune_per_chunk']
@@ -127,7 +140,11 @@ class DAQConnection():
         if self.daq_type=='FPGA':
             self.udp.dac_v = dac_v 
             self.udp.dac_c = dac_c    
-            return self.udp.set_register()        
+            return self.udp.set_register()
+        # --- nmr_sim hook (3/3): Tune-tab DACs act on the simulated Q-meter
+        if self.daq_type=='Test' and getattr(self, 'sim', None) is not None:
+            return self.sim.set_dac(dac_v, dac_c)
+        # --- end nmr_sim hook (3/3)
         if self.daq_type=='Test':
             #print("DAC", dac_v, dac_c)
             return True

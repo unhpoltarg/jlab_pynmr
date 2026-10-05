@@ -26,3 +26,7 @@ log/log
 # Secrets and tokens
 gittoken.txt
 *.token
+
+# nmr_sim hook: session/history of the simulated TestSim profile (remove with nmr_sim)
+config/sim_session.yaml
+config/sim_history.json
