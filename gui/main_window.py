@@ -70,6 +70,7 @@ class MainWindow(QMainWindow):
         self.shimA = 0
         self.analysis_in_progress = False
         self.pending_next_run = False
+        self.pending_window = None   # (cent_freq MHz, mod_freq kHz) waiting for the next event
         self.active_threads = []  # Centralized thread registry
         self.shimB = 0
         self.shimC = 0
@@ -221,11 +222,14 @@ class MainWindow(QMainWindow):
     
     def save_session(self):
         """Print settings before app exit to a file for recall on restart"""
+        cent_freq, mod_freq = self.pending_window or (self.config.channel['cent_freq'], self.config.channel['mod_freq'])
         saved_dict = {
             'phase_tune': self.config.phase_vout,
             'diode_tune': self.config.diode_vout,
             'cc': float(self.run_tab.controls_lines['cc'].text()),
-            'channel': self.run_tab.channel_combo.currentIndex()
+            'channel': self.run_tab.channel_combo.currentIndex(),
+            'cent_freq': float(cent_freq),   # NMR window, MHz (latest requested, even if still pending)
+            'mod_freq': float(mod_freq)      # NMR window half-width, kHz
         }
         with open(os.path.join('config', f'{self.config.settings["session_file"]}.yaml'), 'w') as file:
             yaml.dump(saved_dict, file)
@@ -369,14 +373,81 @@ class MainWindow(QMainWindow):
         self.label = new_label
 
     def channel_change(self, i):
-        """Channel setting changed. Make new config."""
+        """Channel setting changed. Make new config, with the channel's default NMR window from the config file,
+        or the window saved in the session file if this is the restored channel at startup."""
         name = self.channels[i]
-        self.config = Config(self.config_dict['channels'][name], self.settings)
-        if self.service:
-            self.service.config = self.config   # tabs reading config via the service must see the new channel
+        channel = dict(self.config_dict['channels'][name])   # copy: window changes must never edit the config file dict
+        if self.restore_dict.get('channel') == i and 'cent_freq' in self.restore_dict and not getattr(self, 'window_restored', False):
+            channel['cent_freq'] = self.restore_dict['cent_freq']
+            channel['mod_freq'] = self.restore_dict['mod_freq']
+            logging.info(f"Restored NMR window from session: {channel['cent_freq']} MHz ± {channel['mod_freq']} kHz.")
+        self.window_restored = True   # only the first channel set at startup uses the session window
+        self.pending_window = None
+        self.replace_config(Config(channel, self.settings))
         self.event = EventData(self)
         self.rs = RS_Connection(self.config)
         logging.info(f"Changed channel to {self.config.channel['name']}.")
+
+    def replace_config(self, new_config):
+        """Swap in a new Config, keeping the run controls (sweeps, CC) and tune voltages from the old one.
+
+        Events keep a reference to the Config they were started with, so a Config is never edited in place
+        after events use it; channel and window changes always build a new one.
+        """
+        old_config = getattr(self, 'config', None)
+        if old_config is not None:
+            for key, item in old_config.controls.items():
+                if key in new_config.controls:
+                    new_config.controls[key].value = item.value
+            new_config.phase_vout = old_config.phase_vout
+            new_config.diode_vout = old_config.diode_vout
+        self.config = new_config
+        if self.service:
+            self.service.config = self.config   # tabs reading config via the service must see the new channel
+
+    def run_in_progress(self):
+        """True while sweeps are running or the run loop will start another event"""
+        run_thread = getattr(self.run_tab, 'run_thread', None) if hasattr(self, 'run_tab') else None
+        thread_running = run_thread is not None and run_thread.isRunning()
+        return thread_running or (hasattr(self, 'run_tab') and self.run_tab.run_button.isChecked())
+
+    def set_window(self, cent_freq, mod_freq):
+        """Request a new NMR frequency window. Applied now if no run is in progress, otherwise held
+        and applied when the next event starts, so an event in progress keeps its own window.
+
+        Args:
+            cent_freq: Center frequency in MHz
+            mod_freq: Half-width of sweep (R&S FM deviation) in kHz; sweep covers cent_freq ± mod_freq
+        """
+        self.pending_window = (float(cent_freq), float(mod_freq))
+        if self.run_in_progress():
+            logging.info(f"NMR window {cent_freq} MHz ± {mod_freq} kHz pending; applies at next event.")
+        else:
+            self.apply_pending_window()
+            self.event = EventData(self)   # idle: current (not yet started) event takes the new window
+
+    def apply_pending_window(self):
+        """Apply a pending NMR window change, if any: new Config (new freq list for the FPGA), reprogram R&S.
+
+        Returns:
+            True if a window change was applied
+        """
+        if not getattr(self, 'pending_window', None):
+            return False
+        cent_freq, mod_freq = self.pending_window
+        self.pending_window = None
+        old = self.config.channel
+        channel = dict(old)
+        channel['cent_freq'] = cent_freq
+        channel['mod_freq'] = mod_freq
+        self.replace_config(Config(channel, self.settings))
+        self.rs = RS_Connection(self.config)
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        mes = (f"NMR window changed: {cent_freq} MHz ± {mod_freq} kHz (was {old['cent_freq']} MHz ± {old['mod_freq']} kHz), "
+               f"effective {now:%H:%M:%S} UTC.")
+        logging.info(mes)
+        self.status_bar.showMessage(mes)
+        return True
 
     def init_connects(self):
         """Initialize EPICS connections"""

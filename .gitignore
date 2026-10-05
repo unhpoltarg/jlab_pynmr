@@ -22,6 +22,7 @@ log/log
 
 # Local notes for Claude Code
 .claude/CLAUDE.md
+.claude/reference/
 
 # Secrets and tokens
 gittoken.txt

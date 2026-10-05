@@ -67,6 +67,12 @@ class DAQConnection():
                     self.test_phase = np.array(event['phase'])
                     self.test_diode = np.array(event['diode'])
                     self.test_freqs = np.array(event['freq_list'])
+            # Return the recorded signal at the requested frequency points, as hardware would:
+            # interpolate within the recorded range; outside it, hold the nearest edge value (flat baseline)
+            freqs = self.config.freq_list
+            self.test_in_range = (freqs >= self.test_freqs.min()) & (freqs <= self.test_freqs.max())
+            self.test_phase = np.interp(freqs, self.test_freqs, self.test_phase)
+            self.test_diode = np.interp(freqs, self.test_freqs, self.test_diode)
             self.message = 'DAQ Test mode.'
             self.name = 'Test'
             

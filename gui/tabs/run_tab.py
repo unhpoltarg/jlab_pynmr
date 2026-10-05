@@ -153,8 +153,28 @@ class RunTab(QWidget):
         self.channel_label = QLabel()
         self.channel_combo.addItems(self.parent.channels)
         #i = self.channel_combo.findText(self.config.settings['default_channel'],Qt.MatchFixedString)
-        #if i>=0: 
-        #    self.channel_combo.setCurrentIndex(i) 
+        #if i>=0:
+        #    self.channel_combo.setCurrentIndex(i)
+
+        # NMR window: center frequency and half-width, editable any time, applied between events
+        limits = self.parent.settings.get('window_limits', {})   # sanity bounds; set to match R&S FM limits
+        self.window_layout = QGridLayout()
+        self.cent_edit = QLineEdit()
+        self.cent_edit.setValidator(QDoubleValidator(limits.get('cent_min', 1.0), limits.get('cent_max', 500.0), 4,
+                                                     notation=QDoubleValidator.StandardNotation))
+        self.cent_edit.textChanged.connect(parent.check_state)
+        self.hw_edit = QLineEdit()
+        self.hw_edit.setValidator(QDoubleValidator(limits.get('hw_min_khz', 1.0), limits.get('hw_max_khz', 2000.0), 1,
+                                                   notation=QDoubleValidator.StandardNotation))
+        self.hw_edit.textChanged.connect(parent.check_state)
+        self.window_button = QPushButton('Apply Window')
+        self.window_button.clicked.connect(self.window_apply_pushed)
+        self.window_layout.addWidget(QLabel('Center Freq (MHz):'), 0, 0)
+        self.window_layout.addWidget(self.cent_edit, 0, 1)
+        self.window_layout.addWidget(QLabel('Half-width ± (kHz):'), 1, 0)
+        self.window_layout.addWidget(self.hw_edit, 1, 1)
+        self.window_layout.addWidget(self.window_button, 2, 1)
+
         channel_index = self.parent.restore_dict.get('channel', 0)
         channel_index = max(0, min(channel_index, len(self.parent.channels) - 1))
         self.channel_combo.setCurrentIndex(channel_index)
@@ -162,7 +182,8 @@ class RunTab(QWidget):
         self.combo_changed(channel_index)
         self.settings_box.layout().addWidget(self.channel_combo)
         self.settings_box.layout().addWidget(self.channel_label)
-        self.settings_box.layout().addWidget(self.parent.divider())        
+        self.settings_box.layout().addLayout(self.window_layout)
+        self.settings_box.layout().addWidget(self.parent.divider())
         
         self.controls_layout = QGridLayout()
         self.settings_box.layout().addLayout(self.controls_layout)
@@ -375,6 +396,8 @@ class RunTab(QWidget):
     def start_thread(self):
         '''Open new event instance, create then start threads for data taking and plotting '''
 
+        if self.parent.apply_pending_window():  # window change requested during the last event takes effect now
+            self.update_window_label()
         self.parent.new_event()                 # start new event in main window
         #self.parent.set_event_base()            # set current basline to this event
         try:
@@ -405,10 +428,29 @@ class RunTab(QWidget):
         self.run_button.setChecked(False)   # finished signal follows; done() then resets buttons instead of retrying
 
     def combo_changed(self, i):
-        '''Channel changed'''
+        '''Channel changed: window fields reset to the new channel's window'''
         self.parent.channel_change(i)
-        self.channel_label.setText(f'Frequency: {self.parent.config.channel["cent_freq"]} MHz ± {self.parent.config.channel["mod_freq"]} kHz\n' \
-            f'RF Power: {self.parent.config.channel["power"]} mV')
+        self.cent_edit.setText(str(self.parent.config.channel['cent_freq']))
+        self.hw_edit.setText(str(self.parent.config.channel['mod_freq']))
+        self.update_window_label()
+
+    def update_window_label(self):
+        '''Show the active NMR window, and any change waiting for the next event'''
+        ch = self.parent.config.channel
+        text = f'Frequency: {ch["cent_freq"]} MHz ± {ch["mod_freq"]} kHz\nRF Power: {ch["power"]} mV'
+        if self.parent.pending_window:
+            cent, hw = self.parent.pending_window
+            text += f'\nPending (next event): {cent} MHz ± {hw} kHz'
+        self.channel_label.setText(text)
+
+    def window_apply_pushed(self):
+        '''Request the NMR window in the fields; applied now if idle, else when the next event starts'''
+        for edit in (self.cent_edit, self.hw_edit):
+            if edit.validator().validate(edit.text(), 0)[0] != QValidator.Acceptable:
+                self.publish_status_message('NMR window not applied: center or half-width out of range.')
+                return
+        self.parent.set_window(float(self.cent_edit.text()), float(self.hw_edit.text()))
+        self.update_window_label()
 
     def add_sweeps(self,new_sigs):
         '''Add the tuple of sweeps to event'''
