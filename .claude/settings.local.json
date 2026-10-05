@@ -12,6 +12,13 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:github.com)",
       "Bash(gh repo *)"
+    ],
+    "deny": [
+      "Bash(git push*--no-verify*)",
+      "Bash(git push*--force*)",
+      "Bash(git push*-f *)",
+      "Bash(git push*-f)",
+      "Bash(git push*upstream*)"
     ]
   }
 }

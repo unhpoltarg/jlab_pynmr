@@ -20,6 +20,9 @@ app/*session.yaml
 history.json
 log/log
 
+# Local notes for Claude Code
+.claude/CLAUDE.md
+
 # Secrets and tokens
 gittoken.txt
 *.token
