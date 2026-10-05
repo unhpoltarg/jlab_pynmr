@@ -15,6 +15,19 @@ Conventions:
 
 ## 2026-10-05
 
+### `unh` is now the default branch of the fork
+
+**What**
+- On GitHub, set the default branch of `unhpoltarg/jlab_pynmr` to `unh` (was `master`).
+  `jdmax/jlab_pynmr` is unchanged and still defaults to `master`.
+- In the local clone, updated `origin/HEAD` to point at `origin/unh`
+  (`git remote set-head origin -a`).
+
+**Why**
+`unh` is where all UNH work happens. With it as the default, new clones check it out,
+the repo page shows it, and new in-fork pull requests target it. Nobody has to remember
+to switch away from `master`.
+
 ### Repository moved to the unhpoltarg organization; pushes restricted to `unh`
 
 **What**
