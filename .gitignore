@@ -20,14 +20,14 @@ app/*session.yaml
 history.json
 log/log
 
-# Local notes for Claude Code
-.claude/CLAUDE.md
-.claude/reference/
-
 # Secrets and tokens
 gittoken.txt
 *.token
-
-# nmr_sim hook: session/history of the simulated TestSim profile (remove with nmr_sim)
+# >>> UNH-HOOK fork-tools: local notes for Claude Code
+.claude/CLAUDE.md
+.claude/reference/
+# <<< UNH-HOOK fork-tools
+# >>> UNH-HOOK nmr-sim: session/history of the simulated TestSim profile
 config/sim_session.yaml
 config/sim_history.json
+# <<< UNH-HOOK nmr-sim

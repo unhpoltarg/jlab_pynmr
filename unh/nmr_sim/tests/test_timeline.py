@@ -2,7 +2,7 @@
 
 import pytest
 
-from nmr_sim.timeline import Timeline
+from unh.nmr_sim.timeline import Timeline
 
 P_TE = 0.001
 SEGS = [

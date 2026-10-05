@@ -165,8 +165,8 @@ profiles:
                 d_fit_params:
                     wL: 32.7
                     G: -0.0003
-    # --- nmr_sim hook: simulated deuteron Test profile (see nmr_sim/README.md).
-    # Remove this whole profile to drop nmr_sim. Check it with: python -m nmr_sim
+    # >>> UNH-HOOK nmr-sim: simulated deuteron Test profile (see unh/nmr_sim/README.md)
+    # Check it with: python -m unh.nmr_sim
     TestSim:
         channels:
             Deuteron5T:
@@ -215,7 +215,7 @@ profiles:
                     - {name: te, kind: hold, P: te, duration_s: 3600}
                     - {name: spinup, kind: spinup, P_inf: 0.40, tau_s: 3600, duration_s: 21600}
                     - {name: relax, kind: relax, T1_s: 10800, duration_s: null}
-    # --- end nmr_sim hook
+    # <<< UNH-HOOK nmr-sim
     Deuteron:
         channels:
             Deuteron5T:

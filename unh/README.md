@@ -3,6 +3,65 @@
 This folder holds code that the UNH fork (unhpoltarg/jlab_pynmr) adds to PyNMR.
 JLab does not need it, so it is kept out of the shared code and can be deleted cleanly.
 
+## UNH features
+
+| Tag | What | UNH files | Hooks in JLab files |
+|---|---|---|---|
+| `freq-window` | Interactive NMR frequency window on the Run tab | `tests/test_freq_window.py` | `gui/main_window.py`, `gui/tabs/run_tab.py`, `hardware/daq.py` |
+| `data-streamer` | Send each finished event to LabView-NMR-Fitter (below) | `data_streamer.py`, `data_streamer.yaml`, `tests/test_data_streamer.py` | `gui/main_window.py` |
+| `nmr-sim` | Simulated deuteron NMR as a Test data source, profile `TestSim` ([nmr_sim/README.md](nmr_sim/README.md)) | `nmr_sim/` | `hardware/daq.py`, `pynmr_config.yaml`, `.gitignore` |
+| `fork-tools` | Repository tooling for the fork (local Claude Code notes) | none | `.gitignore` |
+
+The freq-window feature mostly lives inside JLab's own files, because it changes how the Run tab and
+`MainWindow` handle the Config. Its code is still fully labelled and removable.
+
+## Labelling UNH changes
+
+UNH code goes in `unh/` whenever it can. When a JLab file has to change, every changed line is marked
+with one tag, `UNH-HOOK`, and the feature name:
+
+```python
+# >>> UNH-HOOK nmr-sim: why this hook exists
+elif self.daq_type=='Test' and ...:
+    ...
+# <<< UNH-HOOK nmr-sim
+
+# >>> UNH-HOOK freq-window: why
+# JLab: self.config = Config(self.config_dict['channels'][name], self.settings)
+self.replace_config(Config(channel, self.settings))
+# <<< UNH-HOOK freq-window
+
+self.pending_window = None   # UNH-HOOK freq-window: a single added line
+```
+
+- **Blocks** (`# >>>` ... `# <<<`) hold UNH lines. The same `#` markers work in YAML and `.gitignore`.
+- **`# JLab:` lines** keep the JLab lines a block replaced, so removing the block can put them back.
+  Prefer adding lines to changing JLab's; a `# JLab:` line is only needed when a JLab line had to go.
+- **A trailing `# UNH-HOOK <feature>`** marks a single added line.
+- **Only labelled changes.** No reformatting or whitespace clean-up of JLab lines.
+- **New features** add their tag and files to `FEATURES` in `strip_unh.py`.
+- **Imports of `unh`** in JLab files are lazy or wrapped in `try: ... except ImportError: pass`, so
+  PyNMR still runs if `unh/` is deleted.
+
+`git grep -n "UNH-HOOK"` lists every hook, and `python -m unh.strip_unh` lists them by feature.
+
+`tests/test_hooks.py` enforces the labels: it strips every hook from each JLab file this branch changed
+and checks that the result is JLab's own version (the last upstream commit merged in). An unlabelled
+change, or a new, deleted or renamed JLab file, fails the test. The UNH-owned paths `unh/`,
+`changelog/`, `notes/` and `.claude/` are exempt (`.claude/settings.local.json` holds the fork's Claude
+Code push guardrails, and JSON can't carry marker comments). So are the files PyNMR rewrites while it
+runs (`config/*session.yaml`, `config/*history.json`, `data/recent_baselines.txt`).
+
+## Removing UNH changes
+
+```sh
+python -m unh.strip_unh                                # dry run: list every hook
+python -m unh.strip_unh --apply                        # remove every hook, restore JLab's lines, delete unh/
+python -m unh.strip_unh --feature nmr-sim --apply      # remove one feature, keep the rest
+```
+
+The script needs only the standard library. After `--apply`, check the result with `git diff`.
+
 ## Data streamer (`data_streamer.py`, `data_streamer.yaml`)
 
 The data streamer sends each finished event's processed NMR line to
@@ -78,10 +137,15 @@ The fitter binds to loopback only, so by default PyNMR and the fitter must run o
 conda run -n pynmr --no-capture-output python -m pytest unh/tests
 ```
 
-## Removing it (e.g. at JLab)
+### Removing it
 
-1. Delete the `unh/` folder.
-2. Delete the tagged block in `gui/main_window.py`. `git grep UNH-DATA-STREAMER` finds every line.
+`python -m unh.strip_unh --feature data-streamer --apply`. Deleting only `data_streamer.py` is also
+safe: the hook in `gui/main_window.py` imports it only if it exists.
 
-Step 1 alone is also safe. The hook only imports `unh.data_streamer` if the folder exists, so
-without it PyNMR runs exactly as it did before.
+## Tests
+
+All UNH tests, from the repo root:
+
+```sh
+conda run -n pynmr --no-capture-output python -m pytest unh -p no:cacheprovider -q
+```

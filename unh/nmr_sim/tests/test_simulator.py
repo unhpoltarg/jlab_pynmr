@@ -5,11 +5,11 @@ import copy
 import numpy as np
 import pytest
 
-from nmr_sim import simulator as simmod
-from nmr_sim.adapter import SimDAQ
-from nmr_sim.clock import SimClock
-from nmr_sim.params import DEFAULTS, resolve
-from nmr_sim.simulator import Simulator
+from unh.nmr_sim import simulator as simmod
+from unh.nmr_sim.adapter import SimDAQ
+from unh.nmr_sim.clock import SimClock
+from unh.nmr_sim.params import DEFAULTS, resolve
+from unh.nmr_sim.simulator import Simulator
 
 FREQ = 32.7 + 0.4 * np.linspace(-32768, 32767, 512).astype(np.int32) / 32768
 TUNE = 0.5 * (FREQ.min() + FREQ.max())

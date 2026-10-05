@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from nmr_sim.noise import NoiseModel
+from unh.nmr_sim.noise import NoiseModel
 
 
 @pytest.mark.parametrize("n", [16, 64, 1024])

@@ -32,7 +32,7 @@ You can also pick **TestSim** from the startup profile dialog.
 - **To check a configuration without the GUI:**
 
   ```powershell
-  conda run -n pynmr --no-capture-output python -m nmr_sim --profile TestSim
+  conda run -n pynmr --no-capture-output python -m unh.nmr_sim --profile TestSim
   ```
 
   It prints the circuit, the background levels, the signal size against P, and the timeline.
@@ -83,23 +83,23 @@ Every key is optional; see `params.DEFAULTS`.
 
 ## Connection points into PyNMR (and how to remove nmr_sim)
 
-nmr_sim imports nothing from `core/`, `gui/`, `hardware/`, `config/`, `utils/` or PySide6, and a test enforces this. PyNMR touches it only at the places below, each tagged `nmr_sim hook`. List them with `git grep -n "nmr_sim hook"`.
+nmr_sim imports nothing from `core/`, `gui/`, `hardware/`, `config/`, `utils/` or PySide6, and a test enforces this. PyNMR touches it only at the places below, each marked `UNH-HOOK nmr-sim` (see [unh/README.md](../README.md)). List them with `git grep -n "UNH-HOOK nmr-sim"`.
 
 1. **`hardware/daq.py`**, three blocks in `DAQConnection`:
-   - (1/3) an `elif` branch in `__init__` that builds `nmr_sim.adapter.SimDAQ` when `settings['test_source'] == 'sim'`. The import is lazy, so replay never imports nmr_sim.
+   - (1/3) an `elif` branch in `__init__` that builds `unh.nmr_sim.adapter.SimDAQ` when `settings['test_source'] == 'sim'`. The import is lazy, so replay never imports nmr_sim.
    - (2/3) an `elif` branch in `get_chunk` that delegates to the simulator.
    - (3/3) an `if` in `set_dac` that forwards the Tune-tab DACs.
 
    The replay code itself is unchanged.
-2. **`pynmr_config.yaml`**: the `TestSim` profile, between `# --- nmr_sim hook` and `# --- end nmr_sim hook`.
+2. **`pynmr_config.yaml`**: the `TestSim` profile.
 3. **`.gitignore`**: two lines, `config/sim_session.yaml` and `config/sim_history.json`.
 
-To remove nmr_sim, delete `nmr_sim/` and those blocks.
+To remove nmr_sim: `python -m unh.strip_unh --feature nmr-sim --apply` deletes `unh/nmr_sim/` and those blocks.
 
 ## Tests
 
 ```powershell
-conda run -n pynmr --no-capture-output python -m pytest nmr_sim/tests -p no:cacheprovider -q
+conda run -n pynmr --no-capture-output python -m pytest unh/nmr_sim/tests -p no:cacheprovider -q
 ```
 
 Run this from the repo root. The tests never import `utils/`, so PyNMR's broken pytest collection doesn't affect them. They cover:

@@ -1,7 +1,7 @@
 """Tests for the interactive NMR frequency window (center frequency and half-width set from the Run tab).
 
 Run from the repo root in the pynmr env:
-    conda run -n pynmr --no-capture-output python -m pytest tests/test_freq_window.py
+    conda run -n pynmr --no-capture-output python -m pytest unh/tests/test_freq_window.py
 """
 import os
 import sys
@@ -10,7 +10,7 @@ import types
 import numpy as np
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from config import Config
@@ -103,7 +103,7 @@ def recorded_signal_config(cent, mod):
 
 @pytest.fixture
 def repo_root(monkeypatch):
-    monkeypatch.chdir(os.path.join(os.path.dirname(__file__), '..'))
+    monkeypatch.chdir(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 
 def test_test_daq_matches_recording_on_its_own_window(repo_root):

@@ -345,11 +345,13 @@ def test_show_reply_error_text():
 # --- Isolation -----------------------------------------------------------------------------------------
 
 def test_hook_block_tolerates_missing_unh_package(monkeypatch):
-    """The tagged block in MainWindow.__init__ runs without error if unh/ has been deleted."""
-    with open(os.path.join(REPO, 'gui', 'main_window.py')) as f:
-        block = [line for line in f if 'UNH-DATA-STREAMER' in line]
-    assert len(block) == 6
-    code = 'def init(self):\n' + ''.join(block)
+    """The data-streamer block in MainWindow.__init__ runs without error if unh/ has been deleted."""
+    from unh.strip_unh import parse
+    with open(os.path.join(REPO, 'gui', 'main_window.py'), encoding='utf-8') as f:
+        lines = f.read().split('\n')
+    hooks = [h for h in parse('\n'.join(lines)) if h['feature'] == 'data-streamer']
+    assert len(hooks) == 1 and hooks[0]['kind'] == 'block'
+    code = 'def init(self):\n' + '\n'.join(lines[hooks[0]['start']:hooks[0]['end'] + 1]) + '\n'
     monkeypatch.setitem(sys.modules, 'unh.data_streamer', None)   # import now raises ImportError
     namespace = {}
     exec(code, namespace)
@@ -357,7 +359,7 @@ def test_hook_block_tolerates_missing_unh_package(monkeypatch):
 
 
 def test_tag_only_in_main_window_and_unh():
-    out = subprocess.run(['git', 'grep', '-l', '--untracked', 'UNH-DATA-STREAMER'], cwd=REPO,
+    out = subprocess.run(['git', 'grep', '-l', '--untracked', 'UNH-HOOK data-streamer'], cwd=REPO,
                          capture_output=True, text=True).stdout.split()
     assert 'gui/main_window.py' in out
     assert all(path in ('gui/main_window.py', 'changelog/changelog.md') or path.startswith('unh/') for path in out)
