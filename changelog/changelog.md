@@ -15,6 +15,82 @@ Conventions:
 
 ## 2026-10-05
 
+### Session summary: start here
+
+This was the first UNH working session on the fork. The detailed entries below explain what changed and why.
+This summary says **where** each change lives, so it can still be found after
+`unh_dev/interactive_freq_window` is merged into `unh`.
+
+**In short**
+1. **Repository setup.**
+   - The fork moved to `unhpoltarg/jlab_pynmr`, and `unh` became its default branch.
+   - Pushes are limited to `unh` and `unh_dev/<topic>` branches.
+   - This changelog was started.
+2. **Ran on Windows/Anaconda with no code changes.** The program needs its conda environment activated; calling the environment's `python.exe` directly crashes SciPy on this laptop.
+3. **Interactive NMR window.**
+   - The Run tab now sets the centre frequency and half-width during a cooldown, applied between events.
+   - Each event records its own window.
+   - `Test` mode now resamples the recorded signal onto the requested window.
+
+**Commits** (base before this session: `692e3ff`, upstream "Bug fixes")
+| Commit | Branch | What |
+|---|---|---|
+| `5abe854` | `unh` | Changelog started; Claude Code push deny rules; `.gitignore` for local Claude notes |
+| `301eb15` | `unh` | Changelog: `unh` made the default branch |
+| `059fd62` | `unh` | Changelog: push guard allows `unh_dev/<topic>` |
+| `cf25a86` | `unh_dev/interactive_freq_window` | Interactive NMR window, Test-mode resampling, tests, LabVIEW notes |
+| (this commit) | `unh_dev/interactive_freq_window` | This summary |
+
+**Files changed in git** (line numbers as of `cf25a86`; a fast-forward merge keeps them)
+| File | Where | What |
+|---|---|---|
+| `gui/main_window.py` | `__init__` L73 | New `self.pending_window` (window waiting for the next event) |
+| | `save_session` L217 | Saves `cent_freq` and `mod_freq` to the session yaml |
+| | `channel_change` L369 | Copies the channel dict; restores the session window at startup; uses `replace_config` |
+| | `replace_config` L385 (new) | Swaps in a new Config, carrying over Sweeps, CC and tune voltages |
+| | `run_in_progress` L402 (new) | True while sweeps run or another event will start |
+| | `set_window` L408 (new) | Requests a window: applied now if idle, otherwise pending |
+| | `apply_pending_window` L423 (new) | New Config, reprograms the R&S, logs the change |
+| `gui/tabs/run_tab.py` | `__init__` L159 (`# NMR window:` block) | Center Freq and Half-width inputs plus the Apply Window button in the NMR Settings box |
+| | `start_thread` L399 | Applies a pending window before `new_event()` |
+| | `combo_changed` L430 | Resets the window fields to the selected channel's values |
+| | `update_window_label` L437 (new) | Shows the active window and any pending one |
+| | `window_apply_pushed` L446 (new) | Validates the inputs, then calls `MainWindow.set_window` |
+| `hardware/daq.py` | `DAQConnection.__init__` Test branch L62 | Interpolates the recorded test signal onto the window; holds edge values outside it |
+| `tests/test_freq_window.py` | new file, 7 tests | Window axis, FPGA table, idle/pending apply, no config mutation, carry-over, Test resampling |
+| `notes/labview_panel_differences.md` | new file | UNH LabVIEW panel features to bring over later |
+| `changelog/changelog.md` | new file | This changelog |
+| `.gitignore` | L23–25 | Ignores `.claude/CLAUDE.md` and `.claude/reference/` |
+| `.claude/settings.local.json` | `permissions.deny` | Stops Claude Code skipping hooks, force-pushing, or pushing to `upstream` |
+
+**To find these after merging:**
+- `git log --oneline 692e3ff..unh` lists this session's commits.
+- `git show cf25a86` shows the full window change.
+- `git diff 692e3ff..unh -- <file>` shows one file's changes.
+- `git grep -n "pending_window\|NMR window"` finds the window code.
+
+**Local only, not in git** (repeat these in any new clone; the details are in the entries below)
+- `.git/hooks/pre-push`: allows only `unh` and `unh_dev/*` to go to unhpoltarg.
+- Git config:
+  - `remote.pushDefault=origin` and `push.default=upstream`;
+  - the `upstream` (jdmax) push URL is set to `DISABLED`;
+  - `origin` points to `unhpoltarg/jlab_pynmr`.
+- Conda environment `pynmr` (Python 3.12):
+  - built from conda-forge, plus nidaqmx, RsInstrument and labjack-ljm from pip;
+  - launch it with `conda run -n pynmr --no-capture-output python pynmr_main.py`.
+- `.claude/CLAUDE.md` holds local Claude notes; `.claude/reference/labview_nmr_panel.png` is the LabVIEW screenshot.
+
+**Open items**
+- **Before analysing cooldown data with window changes:**
+  - CC doesn't transfer between widths;
+  - baselines aren't checked for a matching window;
+  - wings are fractions of the sweep;
+  - history points don't record the window;
+  - the deuteron fit's `wL` start value doesn't follow the centre.
+- **Decision pending:** carry CC over on channel change, or load a per-channel CC.
+- **Existing exit crash:** `core/thread_manager.py:182`, after a run. It also happens on unmodified `unh`, and data is saved first.
+- **Other known bugs:** "Use TE" writes to a `te/` folder that doesn't exist; `explore_tab.py` uses a PyQt5-only call; pytest can't collect anything under `utils/`.
+
 ### Interactive NMR frequency window on the Run tab (branch `unh_dev/interactive_freq_window`)
 
 **What**
