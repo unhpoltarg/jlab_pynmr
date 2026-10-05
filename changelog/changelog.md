@@ -15,6 +15,22 @@ Conventions:
 
 ## 2026-10-05
 
+### Push guard allows per-topic development branches (`unh_dev/<topic>`)
+
+**What**
+- `.git/hooks/pre-push` now allows pushing `unh` and `unh_dev/<topic>` to
+  `unhpoltarg/jlab_pynmr`. The hook is local to a clone and not tracked in the repo.
+  Everything else is still blocked: `master`, `testing`, tags, other branch names, and any
+  push to `jdmax/jlab_pynmr`.
+
+**Why**
+To give experimental work a place where it can break things without touching `unh`.
+`unh` stays the stable, runnable branch. Development uses one branch per topic, named
+`unh_dev/<topic>` (for example `unh_dev/te-fix`) and branched from `unh`. Each topic branch
+is pushed to GitHub as a backup and is merged back into `unh` (`git merge --no-ff`) once
+it works. A plain `unh_dev` branch is not used, because git cannot hold `unh_dev` and
+`unh_dev/<topic>` at the same time.
+
 ### `unh` is now the default branch of the fork
 
 **What**
