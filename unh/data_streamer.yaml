@@ -1,0 +1,16 @@
+# UNH only: stream each finished event's processed NMR line to LabView-NMR-Fitter (see unh/README.md).
+# Keys left out fall back to the defaults in unh/data_streamer.py.
+enable: False
+host: 127.0.0.1
+port: 8777              # fitter's sweep socket (online_fitter/protocol.py DEFAULT_PORT)
+signal: fitsub          # sent as the fitter's baseline_sub: fitsub (baseline- and fit-subtracted) or basesub (baseline only)
+amplitude_scale: 1.0    # multiplies raw and signal before sending, to match the fitter's expected units
+connect_timeout: 1.0    # s
+reply_timeout: 5.0      # s
+species:                # stream only channels of these species (the fitter is deuteron-only); empty list streams all
+    - deuteron
+
+# Per-profile overrides, keyed by the -p profile name. Any key above can be overridden.
+profiles:
+#   Deuteron:
+#       enable: True
