@@ -89,6 +89,12 @@ class MainWindow(QMainWindow):
         self.new_eventfile()        
         self.restore_session()
         self.init_connects()
+        # UNH-DATA-STREAMER: optional stream to LabView-NMR-Fitter, UNH only (see unh/README.md); delete freely
+        try:                                                    # UNH-DATA-STREAMER
+            from unh.data_streamer import attach_streamer       # UNH-DATA-STREAMER
+            attach_streamer(self)                               # UNH-DATA-STREAMER
+        except ImportError:                                     # UNH-DATA-STREAMER
+            pass                                                # UNH-DATA-STREAMER
         
         self.tz = pytz.timezone('US/Eastern')
         
