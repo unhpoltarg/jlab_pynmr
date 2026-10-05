@@ -165,6 +165,57 @@ profiles:
                 d_fit_params:
                     wL: 32.7
                     G: -0.0003
+    # --- nmr_sim hook: simulated deuteron Test profile (see nmr_sim/README.md).
+    # Remove this whole profile to drop nmr_sim. Check it with: python -m nmr_sim
+    TestSim:
+        channels:
+            Deuteron5T:
+                name: Deuteron5T
+                species: deuteron
+                cent_freq: 32.7
+                mod_freq: 400.0
+                power: 400.0
+                sweep_file: tri
+        settings:
+            default_channel: Deuteron5T
+            daq_type: Test
+            test_source: sim            # 'sim' = nmr_sim; anything else = replay of test_signal
+            event_dir: data
+            session_file: sim_session   # kept apart from the replay Test session/history
+            history_file: sim_history
+            analysis:
+                wings:
+                    - 0.01
+                    - 0.25
+                    - 0.75
+                    - 0.99
+                d_fit_params:           # start near the ND3 preset the sim uses
+                    A: 0.038
+                    G: -0.001
+                    r: 1.05
+                    wQ: 0.0273
+                    wL: 32.7
+                    eta: 0.116
+                    xi: 0.0
+            nmr_sim:                    # every key is optional; defaults in nmr_sim/params.py
+                seed: 20261005          # null = new random seed each launch (printed and logged)
+                speed: 60               # simulated seconds per wall second
+                field_T: 5.00306        # 6.536 MHz/T * 5.00306 T = 32.700 MHz (null = on tune freq)
+                te_temp_K: 1.0
+                material: deuterated ammonia (Dec 2024)
+                calibration:            # phase-signal peak height at a given P (sets chi scale)
+                    P: 0.0019
+                    peak_phase_V: 8.0e-4
+                noise:
+                    sigma_phase_V: 1.5e-3   # per sweep; an event of N sweeps has sigma/sqrt(N)
+                    sigma_diode_V: 1.0e-3
+                truth_log_dir: log      # log/nmr_sim_truth_<UTC>.csv, one row per chunk
+                timeline:               # durations in simulated s (wall s = sim s / speed)
+                    - {name: baseline, kind: hold, P: te, duration_s: 7200, line_offset_MHz: 1.2}  # 2 min wall: take baseline here
+                    - {name: te, kind: hold, P: te, duration_s: 3600}
+                    - {name: spinup, kind: spinup, P_inf: 0.40, tau_s: 3600, duration_s: 21600}
+                    - {name: relax, kind: relax, T1_s: 10800, duration_s: null}
+    # --- end nmr_sim hook
     Deuteron:
         channels:
             Deuteron5T:
