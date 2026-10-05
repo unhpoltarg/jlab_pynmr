@@ -108,9 +108,11 @@ def test_every_hook_in_the_repo_is_well_formed():
         su.parse((REPO / rel).read_text(encoding='utf-8'))
 
 
-def test_feature_paths_exist():
-    for feature, info in su.FEATURES.items():
-        for p in info['paths']:
+def test_feature_paths_exist_while_hooked():
+    """A feature still hooked into JLab files has its unh/ files (strip_unh --feature removes both)."""
+    hooked = {h['feature'] for rel in su.hooked_files() for h in su.parse((REPO / rel).read_text(encoding='utf-8'))}
+    for feature in hooked:
+        for p in su.FEATURES[feature]['paths']:
             assert (REPO / p).exists(), f'{feature}: {p} is listed in strip_unh.FEATURES but missing'
 
 

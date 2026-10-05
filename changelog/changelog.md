@@ -113,17 +113,28 @@ This summary says **where** each change lives. The three topic branches
   edits fail, and so do new, deleted or renamed JLab files.
   - Exempt: UNH-owned paths (`unh/`, `changelog/`, `notes/`, `.claude/`) and the files PyNMR rewrites
     while it runs.
-  - It also checks the marker syntax, that each feature's files exist, and that Python still compiles
-    after removing each feature.
+  - It also checks the marker syntax, that each feature still hooked in has its `unh/` files, and that
+    Python still compiles after removing each feature.
 - **Docs:** `unh/README.md` now has the feature list, the labelling rules and the removal steps.
   `unh/nmr_sim/README.md` and the data streamer's hook tests use the new tags.
 
 **Why**
 These features change JLab's code for UNH purposes. With one tag, `git grep -n "UNH-HOOK"` finds every
 change, and the `# JLab:` lines mean the original code can be put back exactly, not just deleted around.
-The test keeps that true for future work, and the script turns removal into one command. A removal
-drill confirmed the result: after stripping everything, the only differences from JLab's code were
-`changelog/`, `notes/` and `.claude/settings.local.json`, and the `Test` profile still ran.
+The test keeps that true for future work, and the script turns removal into one command.
+
+**Checked before merging** (headless runs in throwaway worktrees):
+- **All features together:**
+  - In `Test` and `TestSim`, a window change requested mid-run showed as pending and applied from the
+    next event. Each DAQ connection, including the simulator, used that event's window, and the
+    session file saved it.
+  - With the headless fitter running, the streamer sent each `TestSim` event with its own window, and
+    all replies were `ok`.
+- **Everything stripped:** the JLab files matched `upstream/master` exactly. The only remaining
+  differences were `changelog/`, `notes/` and `.claude/settings.local.json`, and the `Test` profile
+  ran events normally.
+- **One feature stripped at a time** (`freq-window`, `data-streamer`, `nmr-sim`): the remaining UNH
+  tests passed, and the remaining features ran headless.
 
 ### Deuteron NMR simulator as an alternative Test-mode data source (`nmr_sim/`, profile `TestSim`)
 
