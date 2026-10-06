@@ -30,6 +30,37 @@ from each event.
 **Now:** lines say what PyNMR records today, from a read-only survey of `unh` at 7d9fa52 (2026-10-06).
 A summary of today's event file is in [Current state in PyNMR](#current-state-in-pynmr).
 
+## Summary
+
+The tags are the source tags used for that item's needs (see above). The status tags are:
+- `[done]`: PyNMR already records everything the item needs.
+- `[to-do]`: something is still missing. That includes items that are partly covered; the item's **Now:** line says what.
+
+| Item | Needs | Tags | Status&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; |
+|---|---|---|---|
+| **A1** | Number of frequency bins: axis, sampling, window changes | `[online]` | `[to-do]` |
+| **A2** | RF background: baseline used, raw signal, RF settings, diode | `[online]` `[operator]` | `[to-do]` |
+| **A3** | Baseline drift: baseline age, tune state, electronics temperature | `[online]` `[external]` `[offline]` | `[to-do]` |
+| **A4** | NMR circuit characterization: circuit parameters, calibration | `[operator]` `[offline]` `[online]` | `[to-do]` |
+| **A5** | Material specifics: material ID, lineshape fit results, artifacts | `[operator]` `[online]` `[offline]` | `[to-do]` |
+| **A6** | Noise at the maximum number of sweeps: actual sweeps, per-point noise | `[online]` `[offline]` | `[to-do]` |
+| **A7** | Latency budget: chunk, analysis and RF timestamps; sweep rate | `[online]` `[offline]` | `[to-do]` |
+| **A8** | Precision against speed: sweeps per event, RF cadence | `[online]` `[offline]` | `[to-do]` |
+| **B1** | Spin diffusion against field, temperature and microwaves | `[external]` `[online]` `[operator]` | `[to-do]` |
+| **B2** | Cooldown data: run type, continuous logging, TE provenance | `[online]` `[operator]` `[offline]` `[external]` | `[to-do]` |
+| **B3** | Coil characterization and ssRF power calibration | `[ssRF]` `[offline]` | `[to-do]` |
+| **B4** | Hole burning across the spectrum | `[ssRF]` `[offline]` | `[to-do]` |
+| **B5** | Full saturation and recovery, with and without microwaves | `[ssRF]` `[online]` `[external]` | `[to-do]` |
+| **C1** | Identity and provenance: IDs, profile, git commit, config | `[online]` | `[to-do]` |
+| **C2** | Raw and processed both saved | `[online]` | `[done]` |
+| **C3** | Analysis method and parameters recorded | `[online]` | `[to-do]` |
+| **C4** | Units and schema version | `[online]` | `[to-do]` |
+| **C5** | Labels with known truth: TE events, simulation truth | `[online]` | `[to-do]` |
+| **C6** | Data policy: real data stays out of git | (policy) | `[done]` |
+| **C7** | Run outcome and data quality flags | `[online]` | `[to-do]` |
+
+Section D (what the offline pipeline needs) maps onto these items, mostly A3, B1, B2 and the ssRF items.
+
 ---
 
 ## A. Static signal fitting

@@ -15,6 +15,15 @@ Conventions:
 
 ## 2026-10-06
 
+### Output plan: summary table with status tags
+
+**What:** Added a summary table near the top of `unh/output_for_training/output_plan.md`. It lists every A, B and C
+item in one line, with its source tags and a new status tag, `[done]` or `[to-do]`. Two items are done today:
+C2 (raw and processed arrays saved) and C6 (data policy).
+The Status header is padded with non-breaking spaces so `[to-do]` stays on one line in the rendered table.
+
+**Why:** The detailed sections are long. The table gives an at-a-glance view of every item and shows what is still left to do.
+
 ### Plan for recording ML training data (`unh_dev/output_for_training`)
 
 **What:** Added `unh/output_for_training/output_plan.md`. It lists every parameter future PyNMR event files should hold
