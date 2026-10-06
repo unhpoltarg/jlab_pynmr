@@ -15,6 +15,19 @@ Conventions:
 
 ## 2026-10-06
 
+### Output plan: `[in-progress]` status tag
+
+**What:**
+- Added `[in-progress]` to the status tags in the summary of `unh/output_for_training/output_plan.md`.
+  It marks items that are partly done, either because PyNMR already records part of what they need or because work has started.
+- 14 items are now in progress: A1–A8, B1, B2, B5, C1 and C5.
+- Still to do: B3 and B4 (need ssRF), C3 (analysis method), C4 (units/schema) and C7 (run outcome).
+- Still done: C2 and C6.
+- The Status header gets more non-breaking-space padding, so `[in-progress]` stays on one line.
+
+**Why:** Two statuses lumped "nothing yet" together with "partly covered". Most items are partly covered by what
+PyNMR already writes, and the summary should show that.
+
 ### Output plan: summary table with status tags
 
 **What:** Added a summary table near the top of `unh/output_for_training/output_plan.md`. It lists every A, B and C
