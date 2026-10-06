@@ -13,6 +13,21 @@ Conventions:
 
 ---
 
+## 2026-10-06
+
+### Plan for recording ML training data (`unh_dev/output_for_training`)
+
+**What:** Added `unh/output_for_training/output_plan.md`. It lists every parameter future PyNMR event files should hold
+(or let us recover offline), grouped into static signal fitting, dynamic signal characterization, cross-cutting needs, and what the offline
+Optimized-McClellan-Fits pipeline needs from each event.
+Each need is tagged by source: online, offline, external, operator, or ssRF (later).
+It also records what PyNMR saves today (from a code survey), and the open questions with the decisions made so far.
+Planning only; no code changes.
+
+**Why:** We want UNH NMR data that can train ML models, both to emulate the signal for simulation and to analyse it.
+That only works if each event records, or lets us recover, the conditions, circuit state, analysis method and timing behind it.
+Settling the list before changing the event format avoids collecting data that turns out to be missing key inputs.
+
 ## 2026-10-05
 
 ### Session summary: start here
