@@ -34,32 +34,33 @@ A summary of today's event file is in [Current state in PyNMR](#current-state-in
 
 The tags are the source tags used for that item's needs (see above). The status tags are:
 - `[done]`: PyNMR already records everything the item needs.
-- `[in-progress]`: partly done. Either PyNMR already records some of what the item needs, or work on it has started
-  (code, hardware or a decision). The item's **Now:** line says what's still missing.
-- `[to-do]`: nothing in place yet. PyNMR records none of what the item needs, and no work on it has started.
+- `[partial]`: PyNMR records some of what the item needs. The item's **Now:** line says what's still missing.
+- `[missing]`: PyNMR records none of what the item needs yet.
+- `[waiting for <what>]`: the remaining work can't start until something else exists. The tag names that thing,
+  for example `[waiting for ssRF]`.
 
-| Item | Needs | Tags | Status&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; |
+| Item | Needs | Tags | Status&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; |
 |---|---|---|---|
-| **A1** | Number of frequency bins: axis, sampling, window changes | `[online]` | `[in-progress]` |
-| **A2** | RF background: baseline used, raw signal, RF settings, diode | `[online]` `[operator]` | `[in-progress]` |
-| **A3** | Baseline drift: baseline age, tune state, electronics temperature | `[online]` `[external]` `[offline]` | `[in-progress]` |
-| **A4** | NMR circuit characterization: circuit parameters, calibration | `[operator]` `[offline]` `[online]` | `[in-progress]` |
-| **A5** | Material specifics: material ID, lineshape fit results, artifacts | `[operator]` `[online]` `[offline]` | `[in-progress]` |
-| **A6** | Noise at the maximum number of sweeps: actual sweeps, per-point noise | `[online]` `[offline]` | `[in-progress]` |
-| **A7** | Latency budget: chunk, analysis and RF timestamps; sweep rate | `[online]` `[offline]` | `[in-progress]` |
-| **A8** | Precision against speed: sweeps per event, RF cadence | `[online]` `[offline]` | `[in-progress]` |
-| **B1** | Spin diffusion against field, temperature and microwaves | `[external]` `[online]` `[operator]` | `[in-progress]` |
-| **B2** | Cooldown data: run type, continuous logging, TE provenance | `[online]` `[operator]` `[offline]` `[external]` | `[in-progress]` |
-| **B3** | Coil characterization and ssRF power calibration | `[ssRF]` `[offline]` | `[to-do]` |
-| **B4** | Hole burning across the spectrum | `[ssRF]` `[offline]` | `[to-do]` |
-| **B5** | Full saturation and recovery, with and without microwaves | `[ssRF]` `[online]` `[external]` | `[in-progress]` |
-| **C1** | Identity and provenance: IDs, profile, git commit, config | `[online]` | `[in-progress]` |
+| **A1** | Number of frequency bins: axis, sampling, window changes | `[online]` | `[partial]` |
+| **A2** | RF background: baseline used, raw signal, RF settings, diode | `[online]` `[operator]` | `[partial]` |
+| **A3** | Baseline drift: baseline age, tune state, electronics temperature | `[online]` `[external]` `[offline]` | `[partial]` |
+| **A4** | NMR circuit characterization: circuit parameters, calibration | `[operator]` `[offline]` `[online]` | `[partial]` |
+| **A5** | Material specifics: material ID, lineshape fit results, artifacts | `[operator]` `[online]` `[offline]` | `[partial]` |
+| **A6** | Noise at the maximum number of sweeps: actual sweeps, per-point noise | `[online]` `[offline]` | `[partial]` |
+| **A7** | Latency budget: chunk, analysis and RF timestamps; sweep rate | `[online]` `[offline]` | `[partial]` |
+| **A8** | Precision against speed: sweeps per event, RF cadence | `[online]` `[offline]` | `[partial]` |
+| **B1** | Spin diffusion against field, temperature and microwaves | `[external]` `[online]` `[operator]` | `[partial]` |
+| **B2** | Cooldown data: run type, continuous logging, TE provenance | `[online]` `[operator]` `[offline]` `[external]` | `[partial]` |
+| **B3** | Coil characterization and ssRF power calibration | `[ssRF]` `[offline]` | `[waiting for ssRF]` |
+| **B4** | Hole burning across the spectrum | `[ssRF]` `[offline]` | `[waiting for ssRF]` |
+| **B5** | Full saturation and recovery, with and without microwaves | `[ssRF]` `[online]` `[external]` | `[waiting for ssRF]` |
+| **C1** | Identity and provenance: IDs, profile, git commit, config | `[online]` | `[partial]` |
 | **C2** | Raw and processed both saved | `[online]` | `[done]` |
-| **C3** | Analysis method and parameters recorded | `[online]` | `[to-do]` |
-| **C4** | Units and schema version | `[online]` | `[to-do]` |
-| **C5** | Labels with known truth: TE events, simulation truth | `[online]` | `[in-progress]` |
+| **C3** | Analysis method and parameters recorded | `[online]` | `[missing]` |
+| **C4** | Units and schema version | `[online]` | `[missing]` |
+| **C5** | Labels with known truth: TE events, simulation truth | `[online]` | `[partial]` |
 | **C6** | Data policy: real data stays out of git | (policy) | `[done]` |
-| **C7** | Run outcome and data quality flags | `[online]` | `[to-do]` |
+| **C7** | Run outcome and data quality flags | `[online]` | `[missing]` |
 
 Section D (what the offline pipeline needs) maps onto these items, mostly A3, B1, B2 and the ssRF items.
 

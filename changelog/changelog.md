@@ -15,6 +15,22 @@ Conventions:
 
 ## 2026-10-06
 
+### Output plan: status tags say what is recorded, and what each item waits for
+
+**What:** Replaced the `[to-do]` / `[in-progress]` / `[done]` status tags in the summary of
+`unh/output_for_training/output_plan.md`.
+- The new tags are `[done]`, `[partial]`, `[missing]` and `[waiting for <what>]`.
+- **Done:** C2 and C6.
+- **Partial:** A1–A8, B1, B2, C1 and C5.
+- **Missing:** C3, C4 and C7.
+- **Waiting for ssRF:** B3, B4 and B5.
+- The Status header is padded further, so the longer tags don't wrap.
+
+**Why:** `[in-progress]` mixed two questions: how much PyNMR already records, and whether anyone is working on the item.
+As a result, 14 of the 20 items showed as in progress although nobody had started on them.
+The new tags say only how much is recorded. A waiting item names what it waits for, so a reader can see at once what
+can be worked on now and what has to wait.
+
 ### Output plan: `[in-progress]` status tag
 
 **What:**
