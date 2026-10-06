@@ -4,6 +4,7 @@ import numpy as np
 import datetime
 import pytz
 import json
+import os   # UNH-HOOK te-fix
 from scipy.constants import physical_constants, k as boltz_const
 
 NUC_MAGNETON = physical_constants['nuclear magneton'][0]   # J/T
@@ -103,7 +104,10 @@ class TE():
 Average Area:  {self.area:.7f} ± {self.area_std:.7f}                 Average Temperature:  {self.temp:.4f} ± {self.temp_std:.4f}
 Average Polarization:  {self.te_pol:.5f} ± {self.te_pol_std:.5f}        Average Calibration Constant:  {self.cc:.7f} ± {self.cc_std:.7f}"""
 
-    def print_te(self):
+    # >>> UNH-HOOK te-fix: TE report goes to a given folder (settings te_dir), created if needed
+    # JLab: def print_te(self):
+    def print_te(self, te_dir='te'):
+    # <<< UNH-HOOK te-fix
         '''Print long version of TE report to JSON file'''
         now = datetime.datetime.now(tz=pytz.timezone('US/Eastern')).strftime("%Y-%m-%d_%H-%M-%S")
         json_dict = {}
@@ -112,7 +116,12 @@ Average Polarization:  {self.te_pol:.5f} ± {self.te_pol_std:.5f}        Average
                 json_dict[key] = entry.tolist() 
             else:
                 json_dict.update({key:entry})
-        with open(f"te/{self.species}-{now}.json", "w") as outfile:
-            json.dump(json_dict, outfile, indent = 4) 
-        return   
+        # >>> UNH-HOOK te-fix: the hard-coded te/ folder didn't exist, so this raised and the CC was never set
+        # JLab: with open(f"te/{self.species}-{now}.json", "w") as outfile:
+        # JLab:     json.dump(json_dict, outfile, indent = 4)
+        os.makedirs(te_dir, exist_ok=True)
+        with open(os.path.join(te_dir, f"{self.species}-{now}.json"), "w") as outfile:
+            json.dump(json_dict, outfile, indent = 4)
+        # <<< UNH-HOOK te-fix
+        return
         

@@ -10,6 +10,7 @@ JLab does not need it, so it is kept out of the shared code and can be deleted c
 | `freq-window` | Interactive NMR frequency window on the Run tab | `tests/test_freq_window.py` | `gui/main_window.py`, `gui/tabs/run_tab.py`, `hardware/daq.py` |
 | `data-streamer` | Send each finished event to LabView-NMR-Fitter (below) | `data_streamer.py`, `data_streamer.yaml`, `tests/test_data_streamer.py` | `gui/main_window.py` |
 | `nmr-sim` | Simulated deuteron NMR as a Test data source, profile `TestSim` ([nmr_sim/README.md](nmr_sim/README.md)) | `nmr_sim/` | `hardware/daq.py`, `pynmr_config.yaml`, `.gitignore` |
+| `te-fix` | TE calibration fixes: the report goes to `te_dir` (created if needed), the Run-tab CC box shows the CC in use, and a TE without temperature readings is refused | `tests/test_te_fix.py` | `core/calculations.py`, `gui/tabs/te_tab.py`, `gui/main_window.py` |
 | `fork-tools` | Repository tooling for the fork (local Claude Code notes) | none | `.gitignore` |
 
 The freq-window feature mostly lives inside JLab's own files, because it changes how the Run tab and
