@@ -225,10 +225,21 @@ def test_species_filter():
 
 # --- Settings ------------------------------------------------------------------------------------------
 
-def test_shipped_settings_keep_streaming_off():
-    """The committed data_streamer.yaml must not switch streaming on for anyone by default."""
+# >>> UNH-UTSAV genesis-fitter-interface: define the development TestSim -> Genesis streaming rule.
+def test_shipped_settings_keep_normal_and_physical_profiles_off():
+    """The committed settings keep normal and physical profiles disabled by default."""
     for profile in (None, 'Test', 'Deuteron', 'Proton'):
         assert ds.load_stream_config(profile)['enable'] is False
+
+
+def test_shipped_testsim_streams_basesub_to_genesis():
+    cfg = ds.load_stream_config('TestSim')
+
+    assert cfg['enable'] is True
+    assert cfg['signal'] == 'basesub'
+    assert cfg['host'] == '127.0.0.1'
+    assert cfg['port'] == 8777
+# <<< UNH-UTSAV genesis-fitter-interface
 
 
 def test_missing_or_invalid_settings_disable_streaming(tmp_path):

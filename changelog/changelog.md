@@ -13,6 +13,27 @@ Conventions:
 
 ---
 
+## 2026-10-08
+
+### Genesis fitter interface: TestSim baseline-subtracted stream
+
+*Branch `unh_dev/genesis_fitter_interface`; development/testing only until reviewed and validated.*
+
+**What**
+- `unh/data_streamer.yaml`: the `TestSim` profile now enables the existing data streamer and selects
+  `signal: basesub`. Global defaults remain unchanged, and the physical `Deuteron` profile remains disabled.
+- `unh/tests/test_data_streamer.py`: added a regression that pins the TestSim Genesis transport settings
+  (`basesub`, loopback host, port 8777).
+- No JLab-owned file was changed. Existing UNH files touched for this integration are marked
+  `UNH-UTSAV genesis-fitter-interface` for review/audit visibility.
+
+**Why**
+PyNMR's `basesub` is the acquired phase signal after subtraction of the selected NMR baseline.
+Its default `fitsub` additionally removes a polynomial fitted to the signal wings. The Genesis
+online fitter already owns its wing/background treatment, so the Genesis integration should receive
+`basesub` to avoid applying background subtraction twice. PyNMR still sends `fitsub` as diagnostic
+metadata in the existing streamer message.
+
 ## 2026-10-05
 
 ### Session summary: start here

@@ -12,5 +12,10 @@ species:                # stream only channels of these species (the fitter is d
 
 # Per-profile overrides, keyed by the -p profile name. Any key above can be overridden.
 profiles:
+    # >>> UNH-UTSAV genesis-fitter-interface: development-only TestSim feed to Genesis uses baseline-only signal.
+    TestSim:
+        enable: True
+        signal: basesub
+    # <<< UNH-UTSAV genesis-fitter-interface
 #   Deuteron:
 #       enable: True
