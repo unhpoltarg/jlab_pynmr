@@ -13,6 +13,29 @@ Conventions:
 
 ---
 
+## 2026-10-12
+
+### Genesis protected completed-event transport
+
+*Development branch `unh_dev/genesis_fitter_interface`; not hardware-approved.*
+
+**What**
+- Added `unh/genesis_event_ipc.py`, using the validated Genesis completed-event IPC protocol.
+- Added disabled-by-default protected transport settings to `unh/data_streamer.py`.
+- Paired original acquisition metadata and corresponding spectrum in the existing worker queue.
+- Required positive local IPC admission immediately before protected TCP transmission.
+- Added offline tests covering pairing, invalid events, missing IPC and denied TCP packets.
+- Preserved existing PyNMR analysis and GUI hooks; changed no JLab-owned files.
+- Tagged changes in existing UNH code with `UNH-UTSAV genesis-fitter-interface`.
+
+**Why**
+The protected Genesis fitter must verify a completed acquisition event and bind it to the precise TCP spectrum. The legacy spectrum-only stream does not supply that evidence.
+
+**Activation**
+Protected mode remains disabled in shipped configuration. It requires explicit `genesis_protected: True`, TCP port `8779`, an absolute `genesis_ipc_socket`, and independently established Genesis producer authorization. IPC access alone does not authenticate PyNMR. Physical source switching and RF operations are excluded.
+
+---
+
 ## 2026-10-08
 
 ### Genesis fitter interface: TestSim baseline-subtracted stream

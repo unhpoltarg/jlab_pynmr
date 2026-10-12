@@ -13,6 +13,8 @@ import logging
 import os
 import queue
 import socket
+import time  # UNH-UTSAV genesis-fitter-interface
+from unh import genesis_event_ipc  # UNH-UTSAV genesis-fitter-interface
 
 import numpy as np
 import yaml
@@ -30,6 +32,11 @@ DEFAULTS = {
     'amplitude_scale': 1.0,      # multiplies raw and signal before sending
     'connect_timeout': 1.0,      # s
     'reply_timeout': 5.0,        # s
+    # >>> UNH-UTSAV genesis-fitter-interface: protected transport defaults OFF.
+    'genesis_protected': False,
+    'genesis_ipc_socket': '',
+    'genesis_ipc_timeout': 0.75,
+    # <<< UNH-UTSAV genesis-fitter-interface
     'species': ['deuteron'],     # stream only channels of these species; empty list streams all
 }
 SIGNALS = ('fitsub', 'basesub')
@@ -69,6 +76,21 @@ def load_stream_config(profile=None, path=CONFIG_FILE):
     if cfg['signal'] not in SIGNALS:
         log.error(f"Data streamer disabled: signal must be one of {SIGNALS}, got {cfg['signal']!r}.")
         cfg['enable'] = False
+    # >>> UNH-UTSAV genesis-fitter-interface: explicit fail-closed activation.
+    if cfg.get('genesis_protected'):
+        path = cfg.get('genesis_ipc_socket')
+        if (
+            not isinstance(path, str)
+            or not os.path.isabs(path)
+            or cfg.get('host') != '127.0.0.1'
+            or cfg.get('port') != 8779
+        ):
+            log.error(
+                "Genesis protected streamer disabled: "
+                "requires local port 8779 and absolute IPC path."
+            )
+            cfg['enable'] = False
+    # <<< UNH-UTSAV genesis-fitter-interface
     return cfg
 
 
@@ -208,12 +230,26 @@ class DataStreamer(BaseThread):
     def submit(self, event):
         """Build the message for a finished event and queue it for sending, dropping the oldest if full"""
         msg = build_sweep_message(event, self.cfg)
+        # >>> UNH-UTSAV genesis-fitter-interface: snapshot matching event.
+        if self.cfg.get('genesis_protected'):
+            try:
+                envelope = genesis_event_ipc.build_event_envelope(event, msg)
+            except (TypeError, ValueError) as exc:
+                self.warn_once(
+                    'genesis-invalid-event',
+                    f"Genesis protected event rejected: {exc}"
+                )
+                return
+            item = (msg, envelope)
+        else:
+            item = msg
+        # <<< UNH-UTSAV genesis-fitter-interface
         if not msg['uniform_axis']:
             self.warn_once('uniform', "Data streamer: this sweep's frequency axis is not uniform. The fitter rebuilds "
                                       "its axis from centfreq/span unless it supports freqs_mhz.")
         while True:
             try:
-                self.queue.put_nowait(msg)
+                self.queue.put_nowait(item)
                 return
             except queue.Full:
                 try:
@@ -226,10 +262,40 @@ class DataStreamer(BaseThread):
         log.info(f"Data streamer sending to {self.cfg['host']}:{self.cfg['port']}.")
         while not self.should_stop():
             try:
-                msg = self.queue.get(timeout=0.2)
+                item = self.queue.get(timeout=0.2)
             except queue.Empty:
                 continue
-            reply = self.send_one(msg)
+            # >>> UNH-UTSAV genesis-fitter-interface: worker IPC precedes TCP.
+            if self.cfg.get('genesis_protected'):
+                msg, envelope = item
+
+                def before_send():
+                    delay = max(
+                        0.0,
+                        min(
+                            0.40,
+                            envelope['event']['stop_stamp']
+                            + 0.40 - time.time()
+                        )
+                    )
+                    if delay:
+                        time.sleep(delay)
+                    if self.should_stop():
+                        return False
+                    return genesis_event_ipc.publish_event(
+                        self.cfg['genesis_ipc_socket'],
+                        envelope,
+                        timeout_s=self.cfg.get(
+                            'genesis_ipc_timeout', 0.75
+                        ),
+                    )
+
+                reply = self.send_one(
+                    msg, before_send=before_send
+                )
+            else:
+                reply = self.send_one(item)
+            # <<< UNH-UTSAV genesis-fitter-interface
             if reply is not None:
                 self.emit_reply(reply)
 
@@ -247,7 +313,9 @@ class DataStreamer(BaseThread):
                 pass
         return super().stop_thread(timeout)
 
-    def send_one(self, msg):
+    # >>> UNH-UTSAV genesis-fitter-interface: optional pre-send admission.
+    def send_one(self, msg, before_send=None):
+    # <<< UNH-UTSAV genesis-fitter-interface
         """Send one message and wait for its reply line.
 
         Returns:
@@ -260,6 +328,23 @@ class DataStreamer(BaseThread):
                                                      timeout=float(self.cfg['connect_timeout']))
                 self.reader = self.sock.makefile('rb')
             self.sock.settimeout(float(self.cfg['reply_timeout']))
+            # >>> UNH-UTSAV genesis-fitter-interface: suppress unapproved TCP packets.
+            if before_send is not None:
+                try:
+                    approved = before_send() is True
+                except Exception as exc:
+                    self.warn_once(
+                        'genesis-ipc-error',
+                        f"Genesis IPC admission failed: {exc}"
+                    )
+                    return None
+                if not approved:
+                    self.warn_once(
+                        'genesis-ipc-rejected',
+                        "Genesis rejected completed event; TCP suppressed."
+                    )
+                    return None
+            # <<< UNH-UTSAV genesis-fitter-interface
             self.sock.sendall(encode_message(msg))
             line = self.reader.readline()
             if not line:

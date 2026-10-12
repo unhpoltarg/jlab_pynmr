@@ -374,3 +374,80 @@ def test_tag_only_in_main_window_and_unh():
                          capture_output=True, text=True).stdout.split()
     assert 'gui/main_window.py' in out
     assert all(path in ('gui/main_window.py', 'changelog/changelog.md') or path.startswith('unh/') for path in out)
+
+
+# >>> UNH-UTSAV genesis-fitter-interface: protected stream regressions.
+def test_genesis_protected_disabled_by_default():
+    assert ds.DEFAULTS['genesis_protected'] is False
+    assert ds.load_stream_config('TestSim')['genesis_protected'] is False
+
+
+def test_genesis_protected_pairs_event():
+    event = fake_event()
+    event.start_stamp = event.stop_stamp - 1.0
+    streamer = ds.DataStreamer(cfg(genesis_protected=True))
+    streamer.submit(event)
+
+    msg, envelope = streamer.queue.get_nowait()
+    assert envelope['kind'] == 'pynmr_finished_event'
+    assert envelope['event']['start_stamp'] == event.start_stamp
+    assert envelope['sweep'] == msg
+
+    msg['raw'][0] = 9999.0
+    assert envelope['sweep']['raw'][0] != 9999.0
+
+
+def test_genesis_missing_acquisition_start_fails_closed():
+    streamer = ds.DataStreamer(cfg(genesis_protected=True))
+    streamer.submit(fake_event())
+    assert streamer.queue.empty()
+
+
+def test_genesis_missing_ipc_fails_closed(tmp_path):
+    from unh.genesis_event_ipc import (
+        build_event_envelope, publish_event
+    )
+
+    event = fake_event()
+    event.start_stamp = event.stop_stamp - 1.0
+    msg = ds.build_sweep_message(event, cfg())
+    envelope = build_event_envelope(event, msg)
+
+    assert not publish_event(
+        tmp_path / 'missing.sock', envelope, timeout_s=0.1
+    )
+
+
+def test_genesis_protected_rejects_legacy_tcp_port(tmp_path):
+    path = tmp_path / 'config.yaml'
+    path.write_text(
+        'enable: true\n'
+        'genesis_protected: true\n'
+        'genesis_ipc_socket: /tmp/genesis-test.sock\n'
+        'port: 8777\n'
+    )
+    assert ds.load_stream_config(path=str(path))['enable'] is False
+
+
+def test_genesis_tcp_requires_positive_admission():
+    fitter = FakeFitter()
+    streamer = ds.DataStreamer(cfg(port=fitter.port))
+    msg = ds.build_sweep_message(fake_event(), cfg())
+    decisions = []
+
+    try:
+        assert streamer.send_one(
+            msg, before_send=lambda: decisions.append(False) or False
+        ) is None
+        assert fitter.received == []
+
+        reply = streamer.send_one(
+            msg, before_send=lambda: decisions.append(True) or True
+        )
+        assert reply is not None and reply['ok'] is True
+        assert len(fitter.received) == 1
+        assert decisions == [False, True]
+    finally:
+        streamer.close()
+        fitter.close()
+# <<< UNH-UTSAV genesis-fitter-interface
