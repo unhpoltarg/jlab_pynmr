@@ -36,6 +36,42 @@ Protected mode remains disabled in shipped configuration. It requires explicit `
 
 ---
 
+## 2026-10-13
+
+### Genesis protected NMR: reliable pre-acquisition connection
+
+**Problem**
+- The PyNMR streamer previously opened its TCP connection only when the first completed NMR spectrum was ready.
+- Genesis requires a verified source route, authenticated producer, connected stream, and armed event clock before accepting acquisition events.
+- This timing caused initial real Deuteron events to be rejected.
+
+**Implementation**
+- `unh/data_streamer.py`: establish the protected TCP connection while idle, before acquisition.
+- Retry failed idle connections at most once every two seconds.
+- Preserve existing IPC admission, event-to-spectrum binding, and fail-closed behavior.
+- No spectrum data or event authorization is transmitted simply by establishing the idle connection.
+- Unprotected streaming retains its existing behavior.
+
+**Regression coverage**
+- Added a localhost test verifying early TCP connection, no unsolicited transmission, connection reuse, and inactive behavior outside protected mode.
+- Updated the shipped-default configuration test to read the committed YAML independently of machine-specific commissioning overrides.
+
+**Ubuntu/WSL validation — October 13, 2026**
+- Python syntax and Git diff validation passed.
+- Isolated localhost TCP preconnection test passed.
+- PyNMR PID 10972 established an idle TCP connection to Genesis fitter PID 10977 before acquisition.
+- The first completed real 640-sweep Deuteron event was accepted and fitted, producing `P_fit = 0.3216%`.
+- A subsequent completed event produced `P_fit = 0.3455%`.
+- EPICS readback confirmed `P_FIT = 0.3455`, `Q_FIT = 0.0009`, and a successful-fit timestamp of 15:44:49 EDT.
+- These results validate transport, protected event acceptance, fitting, and publication; absolute polarization calibration is not established.
+
+**Remaining issues**
+- The separate PyNMR `EventType.EVENT_FINISHED` `NoneType.write` error remains unresolved; it did not prevent fitting.
+- Local Deuteron commissioning YAML, history, and session files remain uncommitted and are not part of this change.
+- No RF operation, hardware switching, or target connection was performed for the software patch.
+
+---
+
 ## 2026-10-08
 
 ### Genesis fitter interface: TestSim baseline-subtracted stream

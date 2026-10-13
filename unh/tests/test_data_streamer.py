@@ -227,9 +227,26 @@ def test_species_filter():
 
 # >>> UNH-UTSAV genesis-fitter-interface: define the development TestSim -> Genesis streaming rule.
 def test_shipped_settings_keep_normal_and_physical_profiles_off():
-    """The committed settings keep normal and physical profiles disabled by default."""
-    for profile in (None, 'Test', 'Deuteron', 'Proton'):
-        assert ds.load_stream_config(profile)['enable'] is False
+    """Check committed defaults independently of local commissioning settings."""
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    shipped = subprocess.check_output(
+        ["git", "show", "HEAD:unh/data_streamer.yaml"],
+        cwd=root,
+        text=True,
+    )
+
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "data_streamer.yaml"
+        path.write_text(shipped)
+
+        for profile in (None, 'Test', 'Deuteron', 'Proton'):
+            assert ds.load_stream_config(
+                profile, path=str(path)
+            )['enable'] is False
 
 
 def test_shipped_testsim_streams_basesub_to_genesis():
@@ -450,4 +467,54 @@ def test_genesis_tcp_requires_positive_admission():
     finally:
         streamer.close()
         fitter.close()
+# <<< UNH-UTSAV genesis-fitter-interface
+
+
+
+# >>> UNH-UTSAV genesis-fitter-interface: idle connection regression.
+def test_genesis_protected_idle_preconnection():
+    """Establish the protected transport before any event without sending data."""
+    import socket
+    import pytest
+
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    listener.settimeout(2)
+
+    streamer = ds.DataStreamer({
+        "host": "127.0.0.1",
+        "port": listener.getsockname()[1],
+        "connect_timeout": 1,
+        "reply_timeout": 1,
+        "genesis_protected": True,
+    })
+
+    peer = None
+    try:
+        streamer._connect_idle()
+        assert streamer.sock is not None
+
+        peer, _ = listener.accept()
+        peer.settimeout(0.2)
+
+        with pytest.raises(socket.timeout):
+            peer.recv(1)
+
+        first_socket = streamer.sock
+        streamer._connect_idle()
+
+        assert streamer.sock is first_socket
+        assert streamer.queue.empty()
+
+        # Non-protected mode must not use idle preconnection.
+        streamer.close()
+        streamer.cfg["genesis_protected"] = False
+        streamer._connect_idle()
+        assert streamer.sock is None
+    finally:
+        streamer.close()
+        if peer is not None:
+            peer.close()
+        listener.close()
 # <<< UNH-UTSAV genesis-fitter-interface

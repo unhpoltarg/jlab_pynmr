@@ -201,6 +201,7 @@ class DataStreamer(BaseThread):
         self.sock = None
         self.reader = None
         self.link_down = False          # True after a failure has been logged, until a send succeeds
+        self._next_idle_connect_at = 0.0
         self.warned = set()             # one-time warnings already logged
 
     def warn_once(self, key, message):
@@ -258,9 +259,52 @@ class DataStreamer(BaseThread):
                 except queue.Empty:
                     pass
 
+    # >>> UNH-UTSAV genesis-fitter-interface: pre-acquisition connection.
+    def _connect_idle(self):
+        """Connect before acquisition; never send data or authorize an event."""
+        if (
+            not self.cfg.get('genesis_protected')
+            or self.sock is not None
+            or self.should_stop()
+        ):
+            return
+
+        now = time.monotonic()
+        if now < self._next_idle_connect_at:
+            return
+        self._next_idle_connect_at = now + 2.0
+
+        try:
+            self.sock = socket.create_connection(
+                (self.cfg['host'], int(self.cfg['port'])),
+                timeout=float(self.cfg['connect_timeout']),
+            )
+            if self.should_stop():
+                self.close()
+                return
+            self.reader = self.sock.makefile('rb')
+        except (OSError, ValueError) as exc:
+            self.close()
+            if not self.link_down:
+                log.warning(
+                    f"Genesis protected idle connection unavailable ({exc}); "
+                    "retrying while idle."
+                )
+            self.link_down = True
+            return
+
+        log.info(
+            "Genesis protected idle TCP connection established; "
+            "waiting for verified route and event-clock authorization."
+        )
+        self.link_down = False
+    # <<< UNH-UTSAV genesis-fitter-interface
+
     def execute(self):
         log.info(f"Data streamer sending to {self.cfg['host']}:{self.cfg['port']}.")
         while not self.should_stop():
+            if self.cfg.get('genesis_protected') and self.sock is None:
+                self._connect_idle()
             try:
                 item = self.queue.get(timeout=0.2)
             except queue.Empty:
