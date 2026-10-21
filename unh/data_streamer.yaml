@@ -19,3 +19,13 @@ profiles:
     # <<< UNH-UTSAV genesis-fitter-interface
 #   Deuteron:
 #       enable: True
+
+    # UNH Genesis: actual Deuteron instrument, protected fitter.
+    Deuteron:
+        enable: true
+        host: 127.0.0.1
+        port: 8779
+        signal: basesub
+        genesis_protected: true
+        genesis_ipc_socket: ~/.local/state/genesis/nmr-ipc/events.sock
+        genesis_ipc_timeout: 1.5

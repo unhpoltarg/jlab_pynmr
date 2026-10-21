@@ -13,6 +13,7 @@ import logging
 import os
 import queue
 import socket
+import select
 import time  # UNH-UTSAV genesis-fitter-interface
 from unh import genesis_event_ipc  # UNH-UTSAV genesis-fitter-interface
 
@@ -79,6 +80,9 @@ def load_stream_config(profile=None, path=CONFIG_FILE):
     # >>> UNH-UTSAV genesis-fitter-interface: explicit fail-closed activation.
     if cfg.get('genesis_protected'):
         path = cfg.get('genesis_ipc_socket')
+        if isinstance(path, str):
+            path = os.path.expanduser(path)
+            cfg['genesis_ipc_socket'] = path
         if (
             not isinstance(path, str)
             or not os.path.isabs(path)
@@ -262,12 +266,34 @@ class DataStreamer(BaseThread):
     # >>> UNH-UTSAV genesis-fitter-interface: pre-acquisition connection.
     def _connect_idle(self):
         """Connect before acquisition; never send data or authorize an event."""
-        if (
-            not self.cfg.get('genesis_protected')
-            or self.sock is not None
-            or self.should_stop()
-        ):
+        if not self.cfg.get('genesis_protected') or self.should_stop():
             return
+
+        # Detect a fitter connection closed during a Genesis restart.
+        # This performs no transmission or event authorization.
+        if self.sock is not None:
+            try:
+                readable, _, _ = select.select(
+                    [self.sock], [], [], 0
+                )
+                if not readable:
+                    return
+
+                data = self.sock.recv(
+                    1, socket.MSG_PEEK | socket.MSG_DONTWAIT
+                )
+                if data:
+                    return
+
+            except BlockingIOError:
+                return
+            except (OSError, ValueError):
+                pass
+
+            self.close()
+            log.info(
+                "Genesis fitter TCP connection closed; reconnecting."
+            )
 
         now = time.monotonic()
         if now < self._next_idle_connect_at:
@@ -303,7 +329,7 @@ class DataStreamer(BaseThread):
     def execute(self):
         log.info(f"Data streamer sending to {self.cfg['host']}:{self.cfg['port']}.")
         while not self.should_stop():
-            if self.cfg.get('genesis_protected') and self.sock is None:
+            if self.cfg.get('genesis_protected'):
                 self._connect_idle()
             try:
                 item = self.queue.get(timeout=0.2)
