@@ -35,6 +35,10 @@ class DAQConnection():
                 self.tcp = TCP(self.config, timeout)
                 
             except Exception as e:
+                # >>> UNH-HOOK daq-link: don't leave the UDP socket open when the TCP connection fails
+                if getattr(self, 'udp', None) is not None:
+                    self.udp.close()
+                # <<< UNH-HOOK daq-link
                 raise
                 
             self.name = str(self.udp.ip)
@@ -92,6 +96,23 @@ class DAQConnection():
             except Exception as e:
                 raise
 
+    # >>> UNH-HOOK daq-link: close the box connections now, cleanly, instead of at garbage collection
+    def close(self):
+        '''Close the connections to the DAQ. Safe to call more than once.
+
+        Returns:
+            How the TCP close went (FPGA only), else None
+        '''
+        if self.daq_type != 'FPGA':
+            return None
+        how = None
+        if getattr(self, 'tcp', None) is not None:
+            how = self.tcp.close()
+        if getattr(self, 'udp', None) is not None:
+            self.udp.close()
+        return how
+
+    # <<< UNH-HOOK daq-link
     def start_sweeps(self):
         '''Send command to sending NMR sweeps'''
         if self.daq_type=='FPGA':

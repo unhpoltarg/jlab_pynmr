@@ -2,6 +2,11 @@
 '''
 import socket
 import numpy as np
+# >>> UNH-HOOK daq-link: clean close and logging of the box connection
+import logging
+import time
+log = logging.getLogger('PyNMR.hardware.tcp')
+# <<< UNH-HOOK daq-link
 
 class TCP():
     '''Handle TCP commands and responses
@@ -26,6 +31,7 @@ class TCP():
         self.phase_cal = config.settings['fpga_settings']['phase_cal']
         self.diode_cal = config.settings['fpga_settings']['diode_cal']
         self._rx = bytearray()   # received bytes not yet parsed, kept between get_chunk calls
+        self.close_wait = config.settings['fpga_settings'].get('close_wait', 0.5)   # UNH-HOOK daq-link
 
         if config.settings['fpga_settings']['phase_adc_number'] == 2:
             self.adc_one = 'diode'
@@ -41,6 +47,42 @@ class TCP():
         except Exception as e:
             raise
 
+    # >>> UNH-HOOK daq-link: close the box connection cleanly instead of leaving it to garbage collection
+    def close(self):
+        '''Close the connection the way the box expects: tell it we are done (FIN), read off anything it is
+        still sending, and wait up to close_wait s for it to close its side. Closing a socket that still has
+        unread data makes Windows abort (reset) the connection instead, which can leave the box's network
+        stack stuck until it is power cycled. Safe to call more than once.
+
+        Returns:
+            Short description of how the close went, for the log
+        '''
+        if getattr(self, '_closed', False):
+            return 'already closed'
+        self._closed = True
+        start = time.monotonic()
+        how = None
+        drained = 0
+        try:
+            self.s.shutdown(socket.SHUT_WR)
+            while time.monotonic() - start < self.close_wait:
+                self.s.settimeout(max(0.01, self.close_wait - (time.monotonic() - start)))
+                data = self.s.recv(65536)
+                if not data:
+                    how = 'box closed its side'
+                    break
+                drained += len(data)
+        except socket.timeout:
+            pass
+        except OSError as e:
+            how = f'error ({e})'
+        finally:
+            self.s.close()
+        how = how or f'box did not close its side within {self.close_wait} s'
+        ms = (time.monotonic() - start) * 1000
+        return f'{how} after {ms:.0f} ms' + (f'; discarded {drained} unread bytes' if drained else '')
+
+    # <<< UNH-HOOK daq-link
     def get_chunk(self):
         '''Receive chunks over tcp
 
@@ -56,6 +98,7 @@ class TCP():
         header_at = self._fill_until(lambda: self._rx.find(self.HEADER), len(self.HEADER) + 4)
         if header_at > 0:
             print(f"TCP: discarded {header_at} bytes before chunk header")
+            log.warning(f"Discarded {header_at} bytes from the DAQ before a chunk header.")   # UNH-HOOK daq-link
         del self._rx[:header_at + len(self.HEADER)]
         chunk_num = int.from_bytes(self._rx[0:2], 'little')
         num_in_chunk = int.from_bytes(self._rx[2:4], 'little')

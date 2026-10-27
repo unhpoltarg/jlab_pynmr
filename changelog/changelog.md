@@ -13,6 +13,45 @@ Conventions:
 
 ---
 
+## 2026-10-27
+
+### Close the FPGA box connections cleanly (`daq-link`, branch `unh_dev/daq_connection`)
+
+**What**
+- `hardware/tcp.py`: new `TCP.close()`. It tells the box we are done, reads off anything the box is still
+  sending, and waits up to `fpga_settings: close_wait` s (new key, default 0.5) for the box to close its side.
+- `hardware/udp.py`, `hardware/daq.py`: new `UDP.close()` and `DAQConnection.close()`. If the TCP connect
+  fails, the UDP socket opened just before it is now closed.
+- `gui/tabs/run_tab.py`: the Run thread sends the stop-sweep command after a read error (for example a timeout),
+  and closes the connection explicitly at the end of every event.
+- `gui/tabs/tune_tab.py`: the Tune thread sends the stop-sweep command whenever tune ends (Stop or error), then
+  closes. Each DAC change made while tune is idle closes its connection explicitly too.
+- The box's "Set register error" and "Set frequency error", and UDP connection failures, which were only printed
+  to the console, now also go to `log/pynmr.log`. Each close is logged, e.g.
+  `DAQ connection closed: box closed its side after 3 ms`.
+- New test file `unh/tests/test_daq_link.py` (8 tests, fake box on 127.0.0.1). Feature `daq-link` added to
+  `unh/strip_unh.py` and `unh/README.md`.
+
+**Why**
+- In Hall B the deuteron box (192.168.0.72) sometimes stopped answering PyNMR. Only power cycling it, together
+  with restarting PyNMR, brought it back. The logs from that computer haven't been checked yet, so the cause is
+  inferred rather than confirmed.
+- PyNMR opens a new connection to the box for every event (about one per second with 64-sweep events). In JLab's
+  code each one closes only when Python garbage-collects it. Nothing tells the box to stop sweeping after a read
+  timeout or when Tune is stopped.
+- On Windows, closing a connection while the box's data is still unread aborts it (the box receives a reset)
+  instead of closing it normally. A test on this laptop confirmed this. Small network stacks in FPGA boxes
+  often handle a single connection and never time out a stale one, so one aborted close can leave the box stuck
+  until it is power cycled.
+- A fake box that sends one more chunk than asked for (as the real box does when Sweeps is 32 but chunks are 64)
+  saw a reset from unmodified PyNMR and only normal closes with this change. With a box that closes promptly,
+  each close takes 0–32 ms, so events are not noticeably slower.
+- With Sweeps 32 the box returned 64 sweeps every time, so keep Sweeps at 64 or more. That isn't the whole story,
+  though: on 2026-10-27 the box stopped answering again with Sweeps 640. A normal 640-sweep event leaves no unread
+  data, so this change may not prevent the failure. It also logs every close and the box's errors, so the next
+  failure leaves evidence. If the box turns out to fail after a fixed number of connections, the next step is to
+  keep one connection open for the whole run.
+
 ## 2026-10-05
 
 ### Session summary: start here

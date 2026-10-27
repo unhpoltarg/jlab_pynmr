@@ -10,6 +10,7 @@ JLab does not need it, so it is kept out of the shared code and can be deleted c
 | `freq-window` | Interactive NMR frequency window on the Run tab | `tests/test_freq_window.py` | `gui/main_window.py`, `gui/tabs/run_tab.py`, `hardware/daq.py` |
 | `data-streamer` | Send each finished event to LabView-NMR-Fitter (below) | `data_streamer.py`, `data_streamer.yaml`, `tests/test_data_streamer.py` | `gui/main_window.py` |
 | `nmr-sim` | Simulated deuteron NMR as a Test data source, profile `TestSim` ([nmr_sim/README.md](nmr_sim/README.md)) | `nmr_sim/` | `hardware/daq.py`, `pynmr_config.yaml`, `.gitignore` |
+| `daq-link` | Close the FPGA box connections cleanly, stop the box after errors, log box errors (see below) | `tests/test_daq_link.py` | `hardware/tcp.py`, `hardware/udp.py`, `hardware/daq.py`, `gui/tabs/run_tab.py`, `gui/tabs/tune_tab.py`, `pynmr_config.yaml` |
 | `fork-tools` | Repository tooling for the fork (local Claude Code notes) | none | `.gitignore` |
 
 The freq-window feature mostly lives inside JLab's own files, because it changes how the Run tab and
@@ -141,6 +142,29 @@ conda run -n pynmr --no-capture-output python -m pytest unh/tests
 
 `python -m unh.strip_unh --feature data-streamer --apply`. Deleting only `data_streamer.py` is also
 safe: the hook in `gui/main_window.py` imports it only if it exists.
+
+## Box connection (`daq-link`)
+
+PyNMR opens a new TCP and UDP connection to the FPGA box (`fpga_settings: ip`) for every event, every tune
+session and every DAC change on the Tune tab, and closes it again afterwards. In JLab's code a connection
+is closed only when Python garbage-collects it, and nothing tells the box to stop sweeping when a read
+times out or Tune is stopped. A connection that Windows closes while the box's data is still unread is
+aborted (reset), not closed normally. At UNH the box sometimes stopped answering until it was power cycled,
+which fits its network stack getting stuck on one of those aborted connections.
+
+The hooks:
+- `TCP.close()` sends the box a normal close, reads off anything it is still sending, and waits up to
+  `fpga_settings: close_wait` s (default 0.5) for the box to close its side. `UDP.close()` and
+  `DAQConnection.close()` close everything; the Run thread, Tune thread and Tune DAC changes call them.
+- The Run thread sends the stop-sweep command after a read error, and the Tune thread sends it whenever
+  tune ends (Stop or error), before closing.
+- The box's refusals ("Set register error", "Set frequency error") and UDP failures, which JLab only
+  prints to the console, also go to the log file.
+- Each close is logged, e.g. `DAQ connection closed: box closed its side after 3 ms`. If the log says
+  `box did not close its side within 0.5 s`, each event is 0.5 s slower; lower `close_wait` if that matters.
+
+Tests: `tests/test_daq_link.py` (fake box on 127.0.0.1). Remove with
+`python -m unh.strip_unh --feature daq-link --apply`.
 
 ## Tests
 

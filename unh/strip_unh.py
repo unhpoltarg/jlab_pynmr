@@ -43,6 +43,10 @@ FEATURES = {
         'about': 'Simulated deuteron NMR as a Test-mode data source (TestSim profile)',
         'paths': ['unh/nmr_sim'],
     },
+    'daq-link': {
+        'about': 'Close the FPGA box connections cleanly, stop the box after errors, log box errors',
+        'paths': ['unh/tests/test_daq_link.py'],
+    },
     'fork-tools': {
         'about': 'Repository tooling for the UNH fork (local Claude Code notes)',
         'paths': [],

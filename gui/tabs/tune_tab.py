@@ -181,6 +181,7 @@ class TuneTab(QWidget):
                 #print("Set DAC:", self.dac_c,  self.dac_v)
             else:
                 print("Error setting DAC.")
+            self.daq.close()   # UNH-HOOK daq-link
             del self.daq
  
     def run_pushed(self):
@@ -374,6 +375,15 @@ class TuneThread(BaseThread):
         finally:
             if self.daq:
                 try:
+                    # >>> UNH-HOOK daq-link: tune ends on Stop or an error, often mid-sweep: stop the box, then close cleanly
+                    try:
+                        self.daq.abort()
+                    except Exception as e:
+                        self._logger.warning(f"Could not send stop to DAQ: {e}")
+                    how = self.daq.close()
+                    if how:
+                        self._logger.info(f"DAQ connection closed: {how}")
+                    # <<< UNH-HOOK daq-link
                     del self.daq
                     self.daq = None
                 except Exception as e:

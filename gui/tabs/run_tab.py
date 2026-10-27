@@ -829,6 +829,12 @@ class RunThread(BaseThread):
             except Exception as e:
                 if not self.should_stop():  # Only log if not gracefully stopping
                     self._logger.error(f"Error in run loop: {e}")
+                # >>> UNH-HOOK daq-link: tell the box to stop sweeping before its connection is closed
+                try:
+                    self.daq.abort()
+                except Exception as e2:
+                    self._logger.warning(f"Could not send stop to DAQ after error: {e2}")
+                # <<< UNH-HOOK daq-link
                 break
                     
         self._logger.info(f"Run completed. Received {self.rec_sweeps} sweeps in {rec_chunks} chunks")
@@ -838,6 +844,11 @@ class RunThread(BaseThread):
         if self.daq:
             try:
                 self.daq.stop()
+                # >>> UNH-HOOK daq-link: close the box connection now, cleanly
+                how = self.daq.close()
+                if how:
+                    self._logger.info(f"DAQ connection closed: {how}")
+                # <<< UNH-HOOK daq-link
                 del self.daq
                 self.daq = None
                 self._logger.info("DAQ connection cleaned up")
