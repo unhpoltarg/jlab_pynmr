@@ -16,6 +16,7 @@ import socket
 
 import numpy as np
 import yaml
+from PySide6.QtCore import QObject, Qt, Slot
 
 from core import EventType
 from core.thread_manager import BaseThread, get_thread_manager
@@ -308,6 +309,23 @@ def show_reply(main_window, reply):
         status_bar.showMessage(mes)
 
 
+class ReplyRelay(QObject):
+    """Shows the fitter's replies on the GUI thread.
+
+    The streamer emits each reply from its worker thread. Touching a widget from another thread can crash Qt,
+    and where a plain lambda slot runs has differed between PySide6 versions. This object is created on the
+    GUI thread and connected with a queued connection, so show_reply always runs there.
+    """
+
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
+
+    @Slot(object)
+    def show(self, reply):
+        show_reply(self.main_window, reply)
+
+
 def attach_streamer(main_window):
     """Start streaming finished events to the fitter, if enabled in data_streamer.yaml for this profile.
 
@@ -327,7 +345,9 @@ def attach_streamer(main_window):
         streamer = DataStreamer(cfg)
         get_thread_manager().register_thread(streamer)   # stopped by closeEvent's stop_all_threads
         main_window.register_thread(streamer)            # keep a reference
-        streamer.reply.connect(lambda reply: show_reply(main_window, reply))
+        relay = ReplyRelay(main_window)                  # created here, on the GUI thread
+        streamer.reply.connect(relay.show, Qt.QueuedConnection)
+        main_window.data_streamer_relay = relay          # keep a reference
         bus.subscribe(EventType.EVENT_FINISHED, streamer.on_event_finished)
         streamer.start_thread()
         main_window.data_streamer = streamer

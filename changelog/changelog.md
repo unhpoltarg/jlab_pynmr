@@ -15,6 +15,24 @@ Conventions:
 
 ## 2026-10-27
 
+### Show fitter replies on the GUI thread (`data-streamer`)
+
+**What**
+- `unh/data_streamer.py`: the fitter's replies now reach `show_reply` through a small `ReplyRelay` object made on
+  the GUI thread, with a queued connection, instead of a plain lambda.
+- New test `test_reply_reaches_status_bar_on_gui_thread` in `unh/tests/test_data_streamer.py`.
+
+**Why**
+- The lab computer's logs (Oct 16-27, read from a thumb drive) show that with streaming on, 8 of 9 PyNMR sessions
+  died mid-run after 2-25 events. Each one died silently, with no log line and no shutdown. With streaming off,
+  PyNMR ran 4,110 events over about 105 hours. Each death left the FPGA box sweeping into a dead connection,
+  and the box then needed a power cycle.
+- On that computer both PyNMR and the fitter run inside WSL. Memory and WSL's display layer are the main
+  suspects, and haven't been checked yet.
+- One in-process risk can be removed now. Each reply is emitted on the streamer's worker thread and updates the
+  status bar. Updating a widget from another thread can crash Qt. A plain lambda slot ran on the GUI thread with
+  PySide6 6.11 on the laptop, but that can't be checked on the lab computer's version. The relay makes it certain.
+
 ### Close the FPGA box connections cleanly (`daq-link`, branch `unh_dev/daq_connection`)
 
 **What**
