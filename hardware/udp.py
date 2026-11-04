@@ -2,6 +2,10 @@
 '''
 
 import socket
+# >>> UNH-HOOK daq-link: box errors go to the log file too, not only the console
+import logging
+log = logging.getLogger('PyNMR.hardware.udp')
+# <<< UNH-HOOK daq-link
 
 class UDP():
     '''Handle UDP commands and responses
@@ -27,12 +31,23 @@ class UDP():
         self.port = config.settings['fpga_settings']['port']
         try:
             self.s.connect((self.ip, self.port))
-            if not self.set_register(): print("Set register error")
+            # >>> UNH-HOOK daq-link: box errors go to the log file too, not only the console
+            # JLab: if not self.set_register(): print("Set register error")
+            if not self.set_register():
+                print("Set register error")
+                log.error(f"DAQ at {self.ip} did not accept the register settings.")
+            # <<< UNH-HOOK daq-link
             # print(self.read_stat())
-            if not self.set_freq(config.freq_bytes): print("Set frequency error")
+            # >>> UNH-HOOK daq-link: box errors go to the log file too, not only the console
+            # JLab: if not self.set_freq(config.freq_bytes): print("Set frequency error")
+            if not self.set_freq(config.freq_bytes):
+                print("Set frequency error")
+                log.error(f"DAQ at {self.ip} did not accept the frequency table.")
+            # <<< UNH-HOOK daq-link
             self.read_freq()
         except Exception as e:
             print("Error in UDP connection to DAQ at", self.ip, ":", e)
+            log.error(f"UDP connection to DAQ at {self.ip} failed: {e}")   # UNH-HOOK daq-link
             raise
 
     def __del__(self):
@@ -42,6 +57,12 @@ class UDP():
         except Exception as e:
             raise
 
+    # >>> UNH-HOOK daq-link: close now instead of at garbage collection
+    def close(self):
+        '''Close the UDP socket. Safe to call more than once.'''
+        self.s.close()
+
+    # <<< UNH-HOOK daq-link
     def read_stat(self):
         '''Read status command
         Returns:

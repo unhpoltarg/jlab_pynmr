@@ -336,6 +336,28 @@ def test_attach_streams_finished_events_end_to_end(qapp, monkeypatch):
         fitter.close()
 
 
+def test_reply_reaches_status_bar_on_gui_thread(qapp, monkeypatch):
+    """The reply is emitted on the streamer's worker thread but shown on the GUI thread"""
+    fitter = FakeFitter()
+    bus = EventBus()
+    main = FakeMain(bus)
+    gui_thread = threading.get_ident()
+    shown_on = []
+    main.status_bar = types.SimpleNamespace(showMessage=lambda mes: shown_on.append(threading.get_ident()))
+    monkeypatch.setattr(ds, 'load_stream_config', lambda profile: cfg(port=fitter.port))
+    streamer = ds.attach_streamer(main)
+    try:
+        bus.publish(EventType.EVENT_FINISHED, 'main_window', {'event': fake_event(), 'current_event': None})
+        deadline = time.time() + 5
+        while not shown_on and time.time() < deadline:
+            qapp.processEvents()
+            time.sleep(0.02)
+        assert shown_on == [gui_thread]
+    finally:
+        assert streamer.stop_thread(timeout=3000) is True
+        fitter.close()
+
+
 def test_show_reply_error_text():
     main = FakeMain(None)
     ds.show_reply(main, {'ok': False, 'error': 'bad npts'})

@@ -33,6 +33,7 @@ settings:
         timeout_tune: 1         # TCP timeout for tune
         timeout_check: 1        # TCP timeout for check
         timeout_udp: 1          # Timeout for udp commands
+        close_wait: 0.5         # UNH-HOOK daq-link: max s to wait for the box to close its side of each TCP connection
         adc_drate1: true        # ADC data rate settings, see manual
         adc_drate0: true
         adc_fpath: false        # ADC fpath setting, see manual

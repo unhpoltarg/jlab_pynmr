@@ -46,6 +46,7 @@ Key dependencies: `PySide6`, `pyqtgraph`, `numpy`, `scipy`, `lmfit`, `pyepics`, 
 ## Running
 
 ```bash
+conda activate pynmr312   # UNH-HOOK lab-env: UNH DAQ computer; PyNMR needs Python 3.12+ (see unh/README.md)
 python pynmr_main.py
 ```
 

@@ -13,6 +13,91 @@ Conventions:
 
 ---
 
+## 2026-11-04
+
+### Merge `unh_dev/daq_connection` into `unh`; the crash was Python 3.11, not the streamer
+
+**What**
+- `unh_dev/daq_connection` (the two 2026-10-27 entries below: `daq-link` box connections and the `data-streamer`
+  reply relay) is merged into `unh`.
+- Not in the repo: the DAQ computer now runs PyNMR and the fitter in a new conda env `pynmr312` (Python 3.12),
+  in use since the afternoon of 2026-10-27. The old Python 3.11 env `pynmr` is kept there for rollback.
+- The READMEs now say so (new feature tag `lab-env` in `unh/strip_unh.py`):
+  - `README.md`: one labelled `conda activate pynmr312` line in the Running commands.
+  - `unh/README.md`: new section "Python environment", with the activate steps and the reason.
+
+**Why**
+- This corrects the 2026-10-27 entries, which were written before the cause was known.
+- The silent PyNMR deaths on the lab computer were a Python crash: `Fatal Python error: none_dealloc:
+  deallocating None`, caught at 2026-10-27 12:20 in the main thread while pyqtgraph redrew the Analysis plots
+  (`PlotDataItem.updateItems`). The fitter was still running at the time.
+  - The lab env was Python 3.11. From Python 3.12, None is never deallocated (PEP 683), so this error can't
+    happen there. The laptop has always used 3.12 and never showed it.
+  - Streaming made crashes more frequent but wasn't their cause. The reply relay is kept as a safety fix.
+- The deuteron box went silent only when PyNMR died during a sweep. Clean exits, and ordinary read timeouts, never
+  left it dead. A dead box doesn't answer UDP either, so the `daq-link` close fix doesn't prevent a dead box.
+  It is still worth having:
+  - On the DAQ computer, connecting took 2.0 s per event before and under 0.2 s after.
+  - On the branch's first run there, the fitter dropped out mid-run, and the box survived without a power cycle.
+- Anyone running PyNMR on Linux or WSL should use Python 3.12 or newer.
+
+## 2026-10-27
+
+### Show fitter replies on the GUI thread (`data-streamer`)
+
+**What**
+- `unh/data_streamer.py`: the fitter's replies now reach `show_reply` through a small `ReplyRelay` object made on
+  the GUI thread, with a queued connection, instead of a plain lambda.
+- New test `test_reply_reaches_status_bar_on_gui_thread` in `unh/tests/test_data_streamer.py`.
+
+**Why**
+- The lab computer's logs (Oct 16-27, read from a thumb drive) show that with streaming on, 8 of 9 PyNMR sessions
+  died mid-run after 2-25 events. Each one died silently, with no log line and no shutdown. With streaming off,
+  PyNMR ran 4,110 events over about 105 hours. Each death left the FPGA box sweeping into a dead connection,
+  and the box then needed a power cycle.
+- On that computer both PyNMR and the fitter run inside WSL. Memory and WSL's display layer are the main
+  suspects, and haven't been checked yet.
+- One in-process risk can be removed now. Each reply is emitted on the streamer's worker thread and updates the
+  status bar. Updating a widget from another thread can crash Qt. A plain lambda slot ran on the GUI thread with
+  PySide6 6.11 on the laptop, but that can't be checked on the lab computer's version. The relay makes it certain.
+
+### Close the FPGA box connections cleanly (`daq-link`, branch `unh_dev/daq_connection`)
+
+**What**
+- `hardware/tcp.py`: new `TCP.close()`. It tells the box we are done, reads off anything the box is still
+  sending, and waits up to `fpga_settings: close_wait` s (new key, default 0.5) for the box to close its side.
+- `hardware/udp.py`, `hardware/daq.py`: new `UDP.close()` and `DAQConnection.close()`. If the TCP connect
+  fails, the UDP socket opened just before it is now closed.
+- `gui/tabs/run_tab.py`: the Run thread sends the stop-sweep command after a read error (for example a timeout),
+  and closes the connection explicitly at the end of every event.
+- `gui/tabs/tune_tab.py`: the Tune thread sends the stop-sweep command whenever tune ends (Stop or error), then
+  closes. Each DAC change made while tune is idle closes its connection explicitly too.
+- The box's "Set register error" and "Set frequency error", and UDP connection failures, which were only printed
+  to the console, now also go to `log/pynmr.log`. Each close is logged, e.g.
+  `DAQ connection closed: box closed its side after 3 ms`.
+- New test file `unh/tests/test_daq_link.py` (8 tests, fake box on 127.0.0.1). Feature `daq-link` added to
+  `unh/strip_unh.py` and `unh/README.md`.
+
+**Why**
+- In Hall B the deuteron box (192.168.0.72) sometimes stopped answering PyNMR. Only power cycling it, together
+  with restarting PyNMR, brought it back. The logs from that computer haven't been checked yet, so the cause is
+  inferred rather than confirmed.
+- PyNMR opens a new connection to the box for every event (about one per second with 64-sweep events). In JLab's
+  code each one closes only when Python garbage-collects it. Nothing tells the box to stop sweeping after a read
+  timeout or when Tune is stopped.
+- On Windows, closing a connection while the box's data is still unread aborts it (the box receives a reset)
+  instead of closing it normally. A test on this laptop confirmed this. Small network stacks in FPGA boxes
+  often handle a single connection and never time out a stale one, so one aborted close can leave the box stuck
+  until it is power cycled.
+- A fake box that sends one more chunk than asked for (as the real box does when Sweeps is 32 but chunks are 64)
+  saw a reset from unmodified PyNMR and only normal closes with this change. With a box that closes promptly,
+  each close takes 0–32 ms, so events are not noticeably slower.
+- With Sweeps 32 the box returned 64 sweeps every time, so keep Sweeps at 64 or more. That isn't the whole story,
+  though: on 2026-10-27 the box stopped answering again with Sweeps 640. A normal 640-sweep event leaves no unread
+  data, so this change may not prevent the failure. It also logs every close and the box's errors, so the next
+  failure leaves evidence. If the box turns out to fail after a fixed number of connections, the next step is to
+  keep one connection open for the whole run.
+
 ## 2026-10-05
 
 ### Session summary: start here
