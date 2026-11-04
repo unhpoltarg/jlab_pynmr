@@ -59,6 +59,10 @@ FEATURES = {
         'about': 'Clearer button labels on the exit-while-running dialog',
         'paths': [],
     },
+    'te-fix': {
+        'about': 'TE calibration fixes: report folder, CC display, missing temperatures',
+        'paths': ['unh/tests/test_te_fix.py'],
+    },
     'fork-tools': {
         'about': 'Repository tooling for the UNH fork (local Claude Code notes)',
         'paths': [],

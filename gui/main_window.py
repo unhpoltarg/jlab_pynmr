@@ -407,6 +407,10 @@ class MainWindow(QMainWindow):
     def set_cc(self, new_cc):
         """Set calibration constant"""
         self.config.controls['cc'].value = new_cc
+        # >>> UNH-HOOK te-fix: Run-tab CC box shows the CC in use; the session file saves that box
+        if hasattr(self, 'run_tab'):
+            self.run_tab.controls_lines['cc'].setText(str(new_cc))
+        # <<< UNH-HOOK te-fix
 
     def label_changed(self, new_label):
         """Update event label"""

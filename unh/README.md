@@ -14,6 +14,7 @@ JLab does not need it, so it is kept out of the shared code and can be deleted c
 | `sweep-blocks` | Sweep counts as a fixed 64 × N: Run-tab Sweeps per Event (N default 10), Tune-tab running average (N default 1); 64-sweep tune chunks | `sweep_blocks.py`, `tests/test_sweep_blocks.py` | `gui/tabs/run_tab.py`, `gui/tabs/tune_tab.py`, `pynmr_config.yaml` |
 | `wing-points` | Run tab: "Wing points per side: N" for the wing fit (default from the Analysis-tab bounds), fitted points marked in dashed red | `wing_points.py`, `tests/test_wing_points.py` | `gui/main_window.py` |
 | `exit-guard` | Clearer button labels on the exit-while-running dialog | none | `gui/main_window.py` |
+| `te-fix` | TE calibration fixes: the report goes to `te_dir` (created if needed), the Run-tab CC box shows the CC in use, and a TE without temperature readings is refused | `tests/test_te_fix.py` | `core/calculations.py`, `gui/tabs/te_tab.py`, `gui/main_window.py` |
 | `fork-tools` | Repository tooling for the fork (local Claude Code notes) | none | `.gitignore` |
 
 The freq-window feature mostly lives inside JLab's own files, because it changes how the Run tab and

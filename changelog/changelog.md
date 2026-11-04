@@ -15,6 +15,18 @@ Conventions:
 
 ## 2026-11-04
 
+### Merged `unh_dev/te_fix` into `unh_dev/quadrature_phase`
+
+**What**
+- The TE fixes (entry of 2026-10-05 below) are now on the quadrature branch:
+  - Save Results & Use CC writes to `te_dir` and creates it;
+  - the Run-tab CC box shows the CC in use;
+  - TE points without a temperature reading are refused.
+- Conflicts were only in the feature lists of `unh/README.md` and `unh/strip_unh.py`; both sides kept.
+
+**Why**
+- Ells wants TE working on this branch, and its technote now explains taking and using a TE.
+
 ### Quadrature: split Run-tab plots and Auto Tune (branch `unh_dev/quadrature_phase`)
 
 **What**
@@ -290,6 +302,34 @@ This summary says **where** each change lives. The three topic branches
 - **Decision pending:** carry CC over on channel change, or load a per-channel CC.
 - **Existing exit crash:** `core/thread_manager.py:182`, after a run. It also happens on unmodified `unh`, and data is saved first.
 - **Other known bugs:** "Use TE" writes to a `te/` folder that doesn't exist; `explore_tab.py` uses a PyQt5-only call; pytest can't collect anything under `utils/`.
+
+### TE calibration works again (branch `unh_dev/te_fix`)
+
+**What** (new feature tag `te-fix`; every change is in `UNH-HOOK te-fix` blocks)
+- `core/calculations.py`: `TE.print_te(te_dir='te')` writes the TE report to the given folder and creates it if
+  needed. It used to write to a hard-coded `te/` folder that doesn't exist.
+- `gui/tabs/te_tab.py`:
+  - "Save Results && Use CC" passes the configured `te_dir` (already in `pynmr_config.yaml`, previously unused).
+  - "Take TE" refuses events without a real temperature reading (missing, `None`, or ≤ 0 K) and says how
+    many are affected.
+  - The TE table shows `nan` for a missing reading instead of raising.
+- `gui/main_window.py`: `set_cc` also updates the Run tab's CC box.
+- `unh/strip_unh.py` and `unh/README.md`: `te-fix` registered as a feature.
+- `unh/tests/test_te_fix.py`: 8 tests.
+
+**Why**
+"Use TE" raised before it could set the CC, so TE calibration never took effect. Even when a CC was set some
+other way:
+- the Run tab kept showing the old value;
+- the session file saved that box, so the CC in use was lost on restart;
+- pressing Unlock/Set put the old value back.
+
+A TE taken with EPICS off silently used 0 K, which gives P_TE ≈ 1 and a meaningless CC.
+
+**Not changed:**
+- The TE tab's species box still defaults to Proton whatever the channel is.
+- The field is still typed in by hand.
+- The temperature is still a single EPICS snapshot taken after each event's analysis.
 
 ### Merged the three topic branches; every UNH change labelled and removable (branch `unh_dev/unh_hooks`)
 
