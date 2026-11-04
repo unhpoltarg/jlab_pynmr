@@ -122,13 +122,16 @@ Two things affect which events go out:
 
 ### Enabling it
 
-Edit `data_streamer.yaml`. Set `enable: True` there to stream in every profile, or enable a single
-profile:
+Streaming is **on by default** (since 2026-11-04): the shipped `data_streamer.yaml` has `enable: True`.
+That is harmless when no fitter is running (see Failure behaviour). If the settings file is missing or
+broken, the built-in default (`enable: False` in `data_streamer.py`) leaves streaming off.
+
+To turn it off everywhere, set `enable: False` in `data_streamer.yaml`. To turn it off for one profile only:
 
 ```yaml
 profiles:
-    Deuteron:
-        enable: True
+    Proton:
+        enable: False
 ```
 
 The fitter binds to loopback only, so by default PyNMR and the fitter must run on the same computer.

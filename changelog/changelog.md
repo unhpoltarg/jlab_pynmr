@@ -15,6 +15,23 @@ Conventions:
 
 ## 2026-11-04
 
+### Data streamer on by default (`data-streamer`)
+
+**What**
+- `unh/data_streamer.yaml`: `enable: True`, so every profile streams finished deuteron events to the fitter.
+  The species filter still sends deuteron channels only.
+- `unh/tests/test_data_streamer.py`: `test_shipped_settings_keep_streaming_off` became
+  `test_shipped_settings_stream_by_default`.
+- `unh/README.md` ("Enabling it"): says it is on by default and how to turn it off, everywhere or per profile.
+- Unchanged: the built-in default in `data_streamer.py` is still `enable: False`. It applies only when the yaml is
+  missing or broken.
+
+**Why**
+- Ells's decision: the fitter is now part of normal running.
+- It is safe without a fitter. A missing fitter costs one warning per outage and never holds up acquisition.
+- The crash that streaming seemed to cause was Python 3.11 (entry below). With the 3.12 env, streaming ran without
+  PyNMR dying.
+
 ### Merge `unh_dev/daq_connection` into `unh`; the crash was Python 3.11, not the streamer
 
 **What**

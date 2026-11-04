@@ -225,10 +225,12 @@ def test_species_filter():
 
 # --- Settings ------------------------------------------------------------------------------------------
 
-def test_shipped_settings_keep_streaming_off():
-    """The committed data_streamer.yaml must not switch streaming on for anyone by default."""
+def test_shipped_settings_stream_by_default():
+    """The committed data_streamer.yaml streams in every profile (on by default since 2026-11-04).
+    The species filter still keeps proton channels out."""
     for profile in (None, 'Test', 'Deuteron', 'Proton'):
-        assert ds.load_stream_config(profile)['enable'] is False
+        cfg = ds.load_stream_config(profile)
+        assert cfg['enable'] is True and cfg['species'] == ['deuteron']
 
 
 def test_missing_or_invalid_settings_disable_streaming(tmp_path):
