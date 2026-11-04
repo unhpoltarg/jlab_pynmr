@@ -102,9 +102,10 @@ def test_settings_defaults_off_and_profile_override(tmp_path):
     assert settings.load_settings(None, str(p))['enable'] is False          # no 0 in the sequence
 
 
-def test_shipped_settings_are_off_except_test_profile():
+def test_shipped_settings_on_only_for_deuteron_and_test_profile():
     assert settings.load_settings(None)['enable'] is False
-    assert settings.load_settings('Deuteron')['enable'] is False
+    assert settings.load_settings('Proton')['enable'] is False          # its shifter covers only 180 deg
+    assert settings.load_settings('Deuteron')['enable'] is True         # on for the hall since 2026-11-04
     assert settings.load_settings('TestSimQuad')['enable'] is True
 
 

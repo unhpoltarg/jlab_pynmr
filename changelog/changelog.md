@@ -15,6 +15,20 @@ Conventions:
 
 ## 2026-11-04
 
+### Quadrature controls on for the Deuteron profile (`quad-phase`)
+
+**What**
+- `unh/quadrature/quadrature.yaml`: `enable: True` for the Deuteron profile. The Tune tab gets the Real/Imag
+  selector, Auto Tune and Auto Calibrate Phase, and the Run tab the Quadrature box. Proton stays off (its
+  shifter covers only 180 deg).
+- Nothing changes until the Run-tab Quadrature box is ticked; it starts unticked every launch, so ordinary
+  runs are as before.
+- `unh/README.md` and the technote say so; `unh/quadrature/tests/test_scheduler_records.py` now checks that it is on
+  for Deuteron and TestSimQuad and off for Proton and the base settings. 198 tests pass.
+
+**Why**
+- Ells: quadrature should be available in `unh`. It was on only for the TestSimQuad simulator.
+
 ### Merge `unh_dev/quadrature_phase` into `unh`
 
 **What**

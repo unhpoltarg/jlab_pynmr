@@ -66,5 +66,5 @@ profiles:
             90: 0.4076
             180: 0.5063
             270: 0.5922
-#   Deuteron:
-#       enable: True
+    Deuteron:           # on for the hall since 2026-11-04 (Ells); the Run-tab Quadrature box still starts unticked
+        enable: True

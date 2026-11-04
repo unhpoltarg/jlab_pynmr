@@ -190,13 +190,14 @@ from 2.0~s to under 0.2~s per event.
 never waits for the fitter. In quadrature runs only the $0^\circ$ records are sent.
 
 \paragraph{Turning quadrature on for a profile.} The quadrature controls appear only for profiles enabled in
-\code{unh/quadrature/quadrature.yaml}:
+\code{unh/quadrature/quadrature.yaml}. \code{Deuteron} and the simulator profile \code{TestSimQuad} have them on
+(another profile is added the same way):
 \begin{verbatim}
 profiles:
     Deuteron:
         enable: True
 \end{verbatim}
-The simulator profile \code{TestSimQuad} has them on already, and runs with no hardware:
+TestSimQuad and runs with no hardware:
 \code{python pynmr\_main.py -p TestSimQuad}. In it the Run tab's \btn{Event Label} decides what the simulated target
 does: \emph{None} or \emph{Baseline}, the line moved out of the window (P relaxes towards TE); \emph{TE}, thermal
 equilibrium at 5~T and 1~K (about 0.1\,\%); \emph{Polarize}, a spin-up from wherever P is; \emph{Junk}, a very noisy,

@@ -270,7 +270,7 @@ dispersion's long tails. The fitted KK curve is drawn dashed on the Imag Fit Sub
 The design, record schema, hardware notes (SCPHS-51+ shifter) and the limits of the calibration are in
 [`notes/quadrature_phase_design.md`](../notes/quadrature_phase_design.md).
 
-- **Enable:** `quadrature.yaml` (`enable: False`; on for the `TestSimQuad` profile). Enabling only adds the
+- **Enable:** `quadrature.yaml` (`enable: False`; on for the `Deuteron` and `TestSimQuad` profiles). Enabling only adds the
   controls, and the checkbox starts unticked at every launch.
 - **Try it without hardware:** `python pynmr_main.py -p TestSimQuad`. This is the simulator with a
   datasheet-shaped phase shifter.
