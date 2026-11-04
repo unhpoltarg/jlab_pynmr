@@ -1,0 +1,10 @@
+# UNH only: Analysis-tab result options "Optimized McClellan Fits (Equilibrium)" and "(ssRF)" (unh/mcclellan.py).
+# They run the online fitter's own FitEngine, imported from the LabView-NMR-Fitter folder.
+# The signal and amplitude_scale fed to the fit come from data_streamer.yaml, so PyNMR fits what the fitter gets.
+fitter_path: ../LabView-NMR-Fitter     # relative to the PyNMR folder, or absolute
+material: ND3                          # ND3, d-butanol or d-propanediol (can also be changed on the Analysis tab)
+
+# Per-profile overrides, keyed by the -p profile name.
+profiles:
+#   Deuteron:
+#       material: ND3

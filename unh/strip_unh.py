@@ -51,6 +51,34 @@ FEATURES = {
         'about': 'Run instructions for the UNH DAQ computer (conda env pynmr312, Python 3.12+)',
         'paths': [],
     },
+    'quad-phase': {
+        'about': 'Both NMR quadratures: Real/Imag Phase Tunes alternated between events, phase-DAC calibration',
+        'paths': ['unh/quadrature', 'unh/tests/test_quadrature.py'],
+    },
+    'sweep-blocks': {
+        'about': 'Sweep counts as 64 x N (Run-tab Sweeps per Event, Tune-tab running average); 64-sweep tune chunks',
+        'paths': ['unh/sweep_blocks.py', 'unh/tests/test_sweep_blocks.py'],
+    },
+    'wing-points': {
+        'about': 'Run tab: wing fit size as points per side, with the fitted points marked in dashed red',
+        'paths': ['unh/wing_points.py', 'unh/tests/test_wing_points.py'],
+    },
+    'mcclellan-fit': {
+        'about': 'Analysis tab: Optimized McClellan Fits (Equilibrium, ssRF) using the online fitter engine',
+        'paths': ['unh/mcclellan.py', 'unh/mcclellan.yaml', 'unh/tests/test_mcclellan.py'],
+    },
+    'base-drag': {
+        'about': 'Baseline tab fixes: drag/shift/Ctrl-A selection sets the baseline; Set Baseline twice keeps dates',
+        'paths': ['unh/tests/test_base_drag.py'],
+    },
+    'exit-guard': {
+        'about': 'Clearer button labels on the exit-while-running dialog',
+        'paths': [],
+    },
+    'te-fix': {
+        'about': 'TE calibration fixes: report folder, CC display, missing temperatures',
+        'paths': ['unh/tests/test_te_fix.py'],
+    },
     'fork-tools': {
         'about': 'Repository tooling for the UNH fork (local Claude Code notes)',
         'paths': [],

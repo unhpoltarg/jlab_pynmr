@@ -31,6 +31,16 @@ offset and the Tune-tab phase DAC. G_phase and G_diode are fixed once at
 construction so that, tuned and with chi = 0, the outputs at the tune
 frequency equal ``phase_bg_V`` and ``diode_bg_V``.
 
+Phase DAC model (value v, 0..1). The defaults give today's ideal shifter:
+    dphi(v)  = phase_dac_span_deg * v, or the polynomial phase_dac_curve_deg
+               [c1, c2, ...] -> c1 v + c2 v^2 + ... (deg), or a table
+               phase_dac_table [[v, deg], ...] interpolated linearly (e.g. a datasheet curve)
+    gain     = G_phase * (1 + phase_dac_gain_slope * v)
+    offset   = phase_dac_offset_V * v added to the phase output (V)
+    settling = the control value relaxes to a new setting with time constant
+               phase_dac_tau_ms (wall clock); 0 = instant
+These are placeholders for testing the quadrature calibration, not measured UNH values.
+
 Units: frequencies in MHz at the API, ohms, henries/farads internally
 (L0 in uH and C in pF at the API), volts.
 """
@@ -69,6 +79,11 @@ class QMeterParams:
     tune_MHz: Optional[float] = None  # tune frequency, MHz (None = centre of sweep)
     varactor_span_pF: float = 2.0    # capacitance change at diode DAC = 1, pF
     phase_dac_span_deg: float = 180.0  # reference-phase change at phase DAC = 1, deg
+    phase_dac_curve_deg: Optional[tuple] = None  # [c1, c2, ...]: dphi = c1 v + c2 v^2 + ..., deg (None = linear span)
+    phase_dac_table: Optional[tuple] = None  # [[v, deg], ...] interpolated; overrides span and curve
+    phase_dac_gain_slope: float = 0.0  # relative phase-detector gain change per unit phase DAC
+    phase_dac_offset_V: float = 0.0    # phase-output offset change per unit phase DAC, V
+    phase_dac_tau_ms: float = 0.0      # phase-shifter settling time constant, wall-clock ms (0 = instant)
     ref_phase_offset_deg: float = 0.0  # reference phase relative to absorptive, deg
     phase_bg_V: float = -2.78        # phase output when tuned, chi = 0, at tune freq, V
     diode_bg_V: float = -0.526       # diode output when tuned, chi = 0, at tune freq, V
@@ -127,7 +142,11 @@ class QMeter:
             self.length_m = p.cable_half_waves * p.v_f * C_M_PER_S / (2.0 * self.f0 * 1e6)
         self.loss_ref_MHz = p.loss_ref_MHz if p.loss_ref_MHz is not None else self.f0
         self.dC_pF = 0.0
-        self.dphi_deg = 0.0
+        self.dphi_deg = 0.0          # effective (settling) reference-phase shift, deg
+        self.phase_v = 0.0           # effective (settling) phase-DAC control value, 0..1
+        self._phase_target = 0.0     # phase-DAC value last set
+        self._settle_from = 0.0      # control value when it was set
+        self._settle_t0 = None       # wall time (s) it was set, None = settled
         if p.C_tune_pF is not None:
             self.C_F = p.C_tune_pF * 1e-12
         else:
@@ -170,21 +189,57 @@ class QMeter:
 
     def detect(self, V):
         """(phase_V, diode_V) detector outputs for complex node voltage V."""
-        phase = self.G_phase * np.real(V * np.exp(-1j * self.ref_phase_rad()))
+        gain = self.G_phase * (1.0 + self.p.phase_dac_gain_slope * self.phase_v)
+        phase = gain * np.real(V * np.exp(-1j * self.ref_phase_rad())) + self.p.phase_dac_offset_V * self.phase_v
         diode = self.G_diode * np.abs(V)
         return phase, diode
 
-    def set_dac(self, value, channel):
+    def phase_dac_deg(self, value):
+        """Reference-phase shift (deg) for phase-DAC value ``value`` (0..1)."""
+        v = float(value)
+        if self.p.phase_dac_table is not None:
+            table = np.asarray(self.p.phase_dac_table, dtype=float)
+            return float(np.interp(v, table[:, 0], table[:, 1]))
+        if self.p.phase_dac_curve_deg is None:
+            return self.p.phase_dac_span_deg * v
+        return float(sum(c * v ** (k + 1) for k, c in enumerate(self.p.phase_dac_curve_deg)))
+
+    def _set_phase_v(self, v):
+        self.phase_v = float(v)
+        self.dphi_deg = self.phase_dac_deg(v)
+
+    def advance(self, t_s):
+        """Let the phase-DAC control value settle up to wall time t_s (s)."""
+        if self._settle_t0 is None:
+            return
+        tau_s = self.p.phase_dac_tau_ms * 1e-3
+        frac = np.exp(-max(0.0, t_s - self._settle_t0) / tau_s)
+        if frac < 1e-12:
+            self._settle_t0 = None
+            frac = 0.0
+        self._set_phase_v(self._phase_target + (self._settle_from - self._phase_target) * frac)
+
+    def set_dac(self, value, channel, t_s=None):
         """Apply a Tune-tab DAC setting.
 
         Args:
             value: 0 (off) to 1 (max), as sent by PyNMR
             channel: 1 phase, 2 diode (varactor), 3 both, 0 no-op
+            t_s: wall time of the write, s; with phase_dac_tau_ms > 0 the phase
+                setting then settles (see ``advance``); None = instant
         """
         if channel in (2, 3):
             self.dC_pF = self.p.varactor_span_pF * float(value)
         if channel in (1, 3):
-            self.dphi_deg = self.p.phase_dac_span_deg * float(value)
+            if self.p.phase_dac_tau_ms > 0 and t_s is not None:
+                self.advance(t_s)
+                self._settle_from = self.phase_v
+                self._settle_t0 = float(t_s)
+                self._phase_target = float(value)
+            else:
+                self._phase_target = float(value)
+                self._settle_t0 = None
+                self._set_phase_v(value)
 
     def loaded_Q(self):
         """Effective circuit Q = w0 L0 / Re Z_T(f0) (tuned, chi = 0), dimensionless."""

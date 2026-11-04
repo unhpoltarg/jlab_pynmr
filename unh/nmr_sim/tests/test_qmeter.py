@@ -118,3 +118,30 @@ def test_dacs_detune_and_restore():
     q.set_dac(0.0, 3)
     ph1, di1 = q.detect(q.voltage(f))
     assert np.allclose(ph1, ph0, rtol=1e-12) and np.allclose(di1, di0, rtol=1e-12)
+
+def test_phase_dac_curve_table_gain_offset():
+    """Phase-DAC model: polynomial or table phase, gain and offset follow the DAC value (quadrature tests)."""
+    q = QMeter(QMeterParams(phase_dac_curve_deg=(100.0, 50.0)), F0)
+    q.set_dac(0.5, 1)
+    assert q.dphi_deg == pytest.approx(100.0 * 0.5 + 50.0 * 0.25)
+    q = QMeter(QMeterParams(phase_dac_table=((0.0, 0.0), (0.5, 200.0), (1.0, 300.0))), F0)
+    q.set_dac(0.75, 1)
+    assert q.dphi_deg == pytest.approx(250.0)
+    p = QMeterParams(phase_dac_gain_slope=-0.1, phase_dac_offset_V=0.02, phase_dac_span_deg=0.0)
+    q = QMeter(p, F0)
+    ph0, _ = q.detect(q.voltage(F0))
+    q.set_dac(0.5, 1)
+    ph1, _ = q.detect(q.voltage(F0))
+    assert ph1 == pytest.approx(ph0 * 0.95 + 0.01, rel=1e-12)
+
+
+def test_phase_dac_settles_with_tau():
+    q = QMeter(QMeterParams(phase_dac_tau_ms=10.0), F0)
+    q.set_dac(0.0, 1, t_s=0.0)
+    q.set_dac(1.0, 1, t_s=1.0)
+    q.advance(1.0)
+    assert q.phase_v == pytest.approx(0.0)
+    q.advance(1.010)
+    assert q.phase_v == pytest.approx(1 - np.exp(-1.0), rel=1e-9)
+    q.advance(2.0)
+    assert q.phase_v == pytest.approx(1.0) and q.dphi_deg == pytest.approx(q.p.phase_dac_span_deg)

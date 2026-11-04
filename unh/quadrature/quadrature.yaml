@@ -1,0 +1,70 @@
+# UNH only: record both quadratures by alternating the phase-detector reference between two Phase Tunes.
+# See notes/quadrature_phase_design.md and unh/README.md. Keys left out fall back to unh/quadrature/settings.py.
+#
+# enable only adds the controls (Tune tab: Real/Imag selector, Auto Tune and Auto Calibrate Phase; Run tab: Quadrature
+# checkbox). Events alternate only while the Run-tab checkbox is ticked, and it starts unticked every launch.
+enable: False
+sequence: pair          # pair (0/90), abba (0/90/90/0), cycle4 (0/90/180/270), or a list such as [0, 0, 0, 90]
+settle_ms: 1            # wait after each phase-DAC write before sweeping, ms (the original 1 ms guard)
+
+# Phase DAC settings (0..1, shown on the Tune tab as DAC %) used when the saved session has no usable set of
+# tunes. From the Hall B cooldown, 2026-10-27 cycle4 run at 32.511 MHz; that calibration put them at 0, -79.9,
+# -180.0 and +100.0 deg, so Imag and 270 were about 10 deg short of quadrature (Auto Tune fixes that).
+default_tunes:
+    0: 0.514
+    90: 0.444
+    180: 0.3039
+    270: 0.6031
+
+cal:
+    v_min: 0.0          # phase-DAC range stepped (0..1 of the ~16 V DAC; the SCPHS-51+ is rated 0-15 V)
+    v_max: 0.94
+    # Defaults take about 50 steps of 64 sweeps: about 90 s on the JLab box (measured ~0.9 s per 32 sweeps).
+    steps: 21           # grid points per pass; the operator's tunes are added as steps of their own
+    passes: 2           # up, then down
+    sweeps_per_step: 64    # rounded up to a multiple of tune_per_chunk (64 in pynmr_config.yaml)
+    ref_every: 10       # back to the Real tune every 10 steps, to track drift
+    settle_ms: 1
+    settle_test_chunks: 4  # back-to-back chunks after a v_min -> v_max jump (diagnostic only; 0 = skip)
+    gain_order: 2       # detector gain change with v, polynomial order (0 = constant)
+    offset_order: 1     # detector offset change with v, polynomial order
+    fit_drift: True
+    bins: 16            # frequency bins per sweep in the fit
+    out_dir: quad_cal   # calibration files: <event_dir>/quad_cal/<cal_id>.json
+
+# Background subtraction for dispersive (90/270 deg) records: a polynomial fitted jointly with the Kramers-Kronig
+# transform of the latest absorption (0 deg, and -1 x 180 deg), over the whole sweep. A wing fit eats the
+# dispersion's long tails. joint_kk: False goes back to the Analysis tab's own subtraction for every angle.
+dispersion:
+    joint_kk: True
+    order: 3
+    edge: 3
+
+# Auto Tune (Tune tab): refines the hand-set tunes to the true 0/90/180/270 deg from the Q-curve.
+# 0 deg = the absorptive direction at the centre frequency (the normal to the Q-curve's trace there).
+autotune:
+    offsets: [-0.03, -0.015, 0.0, 0.015, 0.03]  # phase-DAC steps around each tune (0..1); about 5 steps per tune
+    sweeps_per_step: 64
+    max_passes: 3       # repeat, centred on the new tunes, while a target lies outside the steps
+    polish: True        # then one tighter pass around the new tunes (about 25 s more for Real/Imag)
+    polish_offsets: [-0.01, -0.005, 0.0, 0.005, 0.01]
+    zero_by_curvature: True  # 0 deg = the absorptive setting whose phase curves opposite the diode (diode smile ->
+                             # phase frown, as JLab tunes); False: the absorptive setting nearer the hand Real tune
+    settle_ms: 1
+    bins: 32
+    gain_order: 1
+    offset_order: 1
+    fit_drift: True
+    mask_khz: []        # leave frequency ranges out of the trace fit, kHz from the centre, e.g. [[-60, 60]]
+
+# Per-profile overrides, keyed by the -p profile name.
+profiles:
+    TestSimQuad:
+        enable: True
+        default_tunes:      # the simulator's frown side (diode smile, phase frown = true 0 deg)
+            0: 0.238
+            90: 0.4076
+            180: 0.5063
+            270: 0.5922
+#   Deuteron:
+#       enable: True

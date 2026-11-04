@@ -79,6 +79,10 @@ class BaseTab(QWidget):
         self.event_table.resizeColumnsToContents()
         self.event_table.setModel(self.event_model)
         self.event_table.clicked.connect(self.select_event)
+        # >>> UNH-HOOK base-drag: a drag, shift-click or Ctrl-A selection also sets the baseline (clicked alone misses drags)
+        self.event_table.selectionModel().selectionChanged.connect(
+            lambda *_: self.event_table.selectionModel().selectedRows() and self.select_event())
+        # <<< UNH-HOOK base-drag
         self.base_box.layout().addWidget(self.event_table)    
         self.base_but = QPushButton('Set Baseline')
         self.base_box.layout().addWidget(self.base_but)
@@ -152,6 +156,11 @@ class BaseTab(QWidget):
                             'mod_freq':jd['channel']['mod_freq'], 'stop_time':dt, 
                             'read_time':time, 'stop_stamp':jd['stop_stamp'],'date':date,'label':jd['label'],
                             'base_file':self.basefile_path}})
+                    # >>> UNH-HOOK quad-phase: keep each row's reference angle, so baselines are built per angle
+                    if 'quad_ref_deg' in jd:
+                        self.events[utcstamp]['quad_ref_deg'] = jd['quad_ref_deg']
+                        self.events[utcstamp]['phase_vout'] = jd.get('phase_vout')
+                    # <<< UNH-HOOK quad-phase
                       
             self.publish_status_message('Opened event file '+self.basefile_path)
             #self.event_model.clear()
@@ -165,6 +174,10 @@ class BaseTab(QWidget):
                 self.event_model.setItem(i,5,QStandardItem(str(self.events[stamp]['mod_freq'])))
                 self.event_model.setItem(i,6,QStandardItem(str(self.events[stamp]['channel'])))
                 self.event_model.setItem(i,7,QStandardItem(str(self.events[stamp]['label'])))
+        # >>> UNH-HOOK quad-phase: Angle and Phase DAC columns, so quadrature rows can be told apart
+        if getattr(self.parent, 'quadrature', None) is not None and self.parent.quadrature.ui is not None:
+            self.parent.quadrature.ui.base_table(self)
+        # <<< UNH-HOOK quad-phase
  
     def select_event(self):    #,item):      
         '''Choose events selected from table, average to set as baseline and plot'''
@@ -192,20 +205,52 @@ class BaseTab(QWidget):
         self.base_plot.setData(freqs, self.base_phase_avg)  
         sub = self.parent.event.scan.phase - self.base_phase_avg        
         self.sub_plot.setData(freqs,sub)    
+        # >>> UNH-HOOK quad-phase: quadrature rows are averaged per reference angle, never mixed
+        self.quad_bases = None
+        if getattr(self.parent, 'quadrature', None) is not None:
+            from unh.quadrature.records import group_baselines
+            self.quad_bases = group_baselines(self.events, self.base_stamps)
+            if self.quad_bases:
+                self.base_dict = self.quad_bases[0 if 0 in self.quad_bases else min(self.quad_bases)]
+                self.base_phase_avg = self.base_dict['phase']
+                self.base_plot.setData(freqs, self.base_phase_avg)
+                self.sub_plot.setData(freqs, self.parent.event.scan.phase - self.base_phase_avg)
+            if self.parent.quadrature.ui is not None:
+                self.parent.quadrature.ui.base_selected(self)     # per-angle summary and plot
+        # <<< UNH-HOOK quad-phase
 
     def set_base(self):
         '''Send baselines chosen to be set as the baseline for future events'''
         try:
-            self.parent.new_base(self.base_dict)
+            # >>> UNH-HOOK quad-phase: per-angle baselines; the main baseline is replaced only by a 0 deg one
+            # JLab: self.parent.new_base(self.base_dict)
+            quad_bases = getattr(self, 'quad_bases', None)
+            if quad_bases:
+                self.parent.quadrature.new_baselines(quad_bases)
+                if 0 in quad_bases:
+                    self.parent.new_base(quad_bases[0])
+                else:
+                    self.parent.set_event_base()
+            else:
+                if getattr(self.parent, 'quadrature', None) is not None:
+                    self.parent.quadrature.clear_baselines()     # an untagged baseline replaces all angles'
+                self.parent.new_base(self.base_dict)
+            # <<< UNH-HOOK quad-phase
         except Exception as e:
             self.publish_status_message(f"Error setting baseline: {self.events[self.last_stamp]['read_time']} {e}")
         #filename = re.findall('data.*\.txt', self.parent.event.base_file)
         #self.curr_base_line.setText(filename[0]+', '+ str(self.parent.event.base_time))
         self.curr_base_line.setText(str(self.parent.event.base_time))
         self.print_to_recent(self.base_dict)    
+        # >>> UNH-HOOK quad-phase: the other angles' baselines go to the recent-baselines file too
+        for angle, base in (getattr(self, 'quad_bases', None) or {}).items():
+            if base is not self.base_dict:
+                self.print_to_recent(base)
+        # <<< UNH-HOOK quad-phase
         
     def print_to_recent(self, base_dict):
         '''Prints selected baseline information to recent baselines file for reuse'''
+        base_dict = dict(base_dict)   # UNH-HOOK base-drag: a copy, so a second Set Baseline still has real dates
         
         recentfile = open(self.basefile_name, "a")
         for key, entry in base_dict.items():   

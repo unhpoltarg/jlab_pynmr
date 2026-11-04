@@ -18,6 +18,17 @@ DEFAULTS = {
     "field_T": None,            # magnet field, T (None = on resonance at tune freq)
     "te_temp_K": 1.0,           # lattice temperature for P_TE, K
     "material": "deuterated ammonia (Dec 2024)",  # preset name or constants dict
+    "labels": {                 # label-driven mode (labels.py): the Event Label sets what the target does
+        "enable": False,
+        "baseline_offset_MHz": 1.2,  # None/Baseline: line moved this far, out of the window
+        "P_inf": 0.40,          # Polarize: spin-up target
+        "tau_s": 1200.0,        # Polarize: spin-up time constant, simulated s
+        "T1_s": 10800.0,        # None/Baseline: relaxation towards TE, simulated s
+        "junk_noise_factor": 25.0,   # Junk: white noise times this
+        "junk_offset_V": 0.05,  # Junk: random offset per chunk, V (1 sigma)
+        "junk_slope_V": 0.03,   # Junk: random tilt across the window per chunk, V
+        "junk_bow_V": 0.02,     # Junk: random bow per chunk, V
+    },
     "calibration": {
         "P": 0.0019,            # polarization (fraction) at which ...
         "peak_phase_V": 8.0e-4,  # ... the phase signal peak height is this, V

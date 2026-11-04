@@ -161,7 +161,10 @@ class TETab(QWidget):
         for i,stamp in enumerate(list(self.te_data[:,0])):        # put data in table, hist_points keyed on timestamp
             self.te_model.setItem(i,0,QStandardItem(self.hist_points[stamp].dt.strftime("%H:%M:%S")))
             self.te_model.setItem(i,1,QStandardItem(f"{self.hist_points[stamp].area:.10f}"))
-            self.te_model.setItem(i,2,QStandardItem(f"{self.hist_points[stamp].epics_reads[self.parent.settings['epics_settings']['epics_temp']]:.4f}"))
+            # >>> UNH-HOOK te-fix: a missing temperature reading shows as nan instead of raising
+            # JLab: self.te_model.setItem(i,2,QStandardItem(f"{self.hist_points[stamp].epics_reads[self.parent.settings['epics_settings']['epics_temp']]:.4f}"))
+            self.te_model.setItem(i,2,QStandardItem(f"{self.te_temp(stamp):.4f}"))
+            # <<< UNH-HOOK te-fix
         
     def double_clicked(self, item):
         '''Remove event from table when double clicked'''
@@ -170,7 +173,10 @@ class TETab(QWidget):
         for i,stamp in enumerate(list(self.te_data[:,0])):        # put data in table, hist_points keyed on timestamp
             self.te_model.setItem(i,0,QStandardItem(self.hist_points[stamp].dt.strftime("%H:%M:%S")))
             self.te_model.setItem(i,1,QStandardItem(str(self.hist_points[stamp].area)))
-            self.te_model.setItem(i,2,QStandardItem(str(self.hist_points[stamp].epics_reads[self.parent.settings['epics_settings']['epics_temp']])))
+            # >>> UNH-HOOK te-fix: a missing temperature reading shows as nan instead of raising
+            # JLab: self.te_model.setItem(i,2,QStandardItem(str(self.hist_points[stamp].epics_reads[self.parent.settings['epics_settings']['epics_temp']])))
+            self.te_model.setItem(i,2,QStandardItem(str(self.te_temp(stamp))))
+            # <<< UNH-HOOK te-fix
     
     def update_event_plots(self): 
         '''Update time plot as running'''
@@ -194,15 +200,36 @@ class TETab(QWidget):
     def take_te(self):
         '''Send points for TE to make TE object'''
         times, areas = self.te_data.T
-        temps = np.fromiter((self.hist_points[k].epics_reads[self.parent.settings['epics_settings']['epics_temp']] for k in times.flatten()), np.double)
+        # >>> UNH-HOOK te-fix: refuse a TE without real temperatures (a missing or 0 K reading gave P_TE near 1 silently)
+        # JLab: temps = np.fromiter((self.hist_points[k].epics_reads[self.parent.settings['epics_settings']['epics_temp']] for k in times.flatten()), np.double)
+        temps = np.array([self.te_temp(k) for k in times.flatten()], dtype=float)
+        if not np.all(np.isfinite(temps) & (temps > 0)):
+            self.teselect_label.setText(f'TE not taken: {np.sum(~(np.isfinite(temps) & (temps > 0)))} of {len(temps)} '
+                                        f'selected events have no temperature reading (is EPICS on?).')
+            self.set_but.setEnabled(False)
+            return
+        # <<< UNH-HOOK te-fix
         self.te = TE(self.species_box.currentText(), float(self.field_value.text()), areas.flatten(), temps)
         self.set_but.setEnabled(True)
         self.teselect_label.setText(self.te.pretty_te())   
         
     def use_te(self):
         '''Print TE out to json file named after time taken, set CC'''
-        self.te.print_te()
+        # >>> UNH-HOOK te-fix: TE report goes to settings te_dir (relative to the working folder)
+        # JLab: self.te.print_te()
+        self.te.print_te(self.parent.settings.get('te_dir', 'te'))
+        # <<< UNH-HOOK te-fix
         self.parent.set_cc(self.te.cc)
+    # >>> UNH-HOOK te-fix: temperature of a history point, nan if it wasn't read
+
+    def te_temp(self, stamp):
+        '''Temperature (K) recorded with a history point, or nan if the reading is missing'''
+        value = self.hist_points[stamp].epics_reads.get(self.parent.settings['epics_settings']['epics_temp'])
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float('nan')
+    # <<< UNH-HOOK te-fix
         
     def fit_exp(self,data):
         '''Exponential fit to area of time data with scipy

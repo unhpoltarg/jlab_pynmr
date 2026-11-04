@@ -31,3 +31,8 @@ gittoken.txt
 config/sim_session.yaml
 config/sim_history.json
 # <<< UNH-HOOK nmr-sim
+# >>> UNH-HOOK quad-phase: event files, calibrations and session/history of the simulated TestSimQuad profile
+data-quad/
+config/simquad_session.yaml
+config/simquad_history.json
+# <<< UNH-HOOK quad-phase

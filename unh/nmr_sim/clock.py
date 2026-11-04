@@ -24,3 +24,7 @@ class SimClock:
     def now_s(self):
         """Current simulated time, s."""
         return self.start_at_s + self.speed * (self._wall() - self._t0)
+
+    def wall_s(self):
+        """Current wall-clock time from the clock's source, s (for hardware settling, which is not sped up)."""
+        return self._wall()

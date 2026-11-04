@@ -251,6 +251,13 @@ class AnalTab(EventBusTab):
         self.res_opts.append(FitPeakRes(self))
         self.res_opts.append(FitPeakRes2(self))
         self.res_opts.append(FitDeuteron(self))
+        # >>> UNH-HOOK mcclellan-fit: Optimized McClellan Fits (Equilibrium, ssRF), the online fitter's own fits
+        try:
+            from unh.mcclellan import mcclellan_result_options
+            self.res_opts += mcclellan_result_options(self)
+        except ImportError:
+            pass
+        # <<< UNH-HOOK mcclellan-fit
         
         # Add result methods
         for opt in self.res_opts:

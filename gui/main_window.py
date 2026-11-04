@@ -147,6 +147,20 @@ class MainWindow(QMainWindow):
         
         # Enable run button after initialization
         self.run_toggle()
+        # >>> UNH-HOOK quad-phase: optional Real/Imag Phase Tune alternation (see unh/README.md)
+        try:
+            from unh.quadrature.controller import attach_quadrature
+            attach_quadrature(self)
+        except ImportError:
+            pass
+        # <<< UNH-HOOK quad-phase
+        # >>> UNH-HOOK wing-points: Run-tab box for the wing fit's points per side, and the fitted points marked
+        try:
+            from unh.wing_points import attach_wing_points
+            attach_wing_points(self)
+        except ImportError:
+            pass
+        # <<< UNH-HOOK wing-points
         
     def load_settings(self):
         """Load settings from YAML config file, applying profile overrides if set."""
@@ -234,6 +248,10 @@ class MainWindow(QMainWindow):
         saved_dict['cent_freq'] = float(cent_freq)   # MHz
         saved_dict['mod_freq'] = float(mod_freq)     # half-width, kHz
         # <<< UNH-HOOK freq-window
+        # >>> UNH-HOOK quad-phase: phase_tune stays the Real tune; the Imag (and 180/270) tunes get their own keys
+        if getattr(self, 'quadrature', None) is not None:
+            self.quadrature.save_session(saved_dict)
+        # <<< UNH-HOOK quad-phase
         with open(os.path.join('config', f'{self.config.settings["session_file"]}.yaml'), 'w') as file:
             yaml.dump(saved_dict, file)
             logging.info(f"Printed settings on exit to {file}.")
@@ -262,12 +280,22 @@ class MainWindow(QMainWindow):
         self.analysis_in_progress = True
         self.previous_event = self.event    
         self.previous_event.label = self.label        
-        self.previous_event.close_event(self.anal_tab.base_chosen, self.anal_tab.sub_chosen, self.anal_tab.res_chosen)  
+        # >>> UNH-HOOK quad-phase: dispersive records (90/270 deg) get a background fitted jointly with KK(absorption)
+        # JLab: self.previous_event.close_event(self.anal_tab.base_chosen, self.anal_tab.sub_chosen, self.anal_tab.res_chosen)  
+        sub_chosen = self.anal_tab.sub_chosen
+        if getattr(self, 'quadrature', None) is not None:
+            sub_chosen = self.quadrature.sub_method_for(self.previous_event, sub_chosen)
+        self.previous_event.close_event(self.anal_tab.base_chosen, sub_chosen, self.anal_tab.res_chosen)
+        # <<< UNH-HOOK quad-phase
         self.start_end = datetime.datetime.now(tz=datetime.timezone.utc)    
         
     def epics_update(self, event):
         """Writes current event data to EPICS and reads status variables from EPICS."""        
-        self.epics.write_event(event)
+        # >>> UNH-HOOK quad-phase: only Real (0 deg) records are polarizations, so only they go to EPICS
+        # JLab: self.epics.write_event(event)
+        if getattr(event, 'quad_ref_deg', 0) in (0, None):
+            self.epics.write_event(event)
+        # <<< UNH-HOOK quad-phase
         self.epics.read_all()
         event.epics = self.epics.read_pvs
     
@@ -283,8 +311,13 @@ class MainWindow(QMainWindow):
         self.eventfile_lines += 1
         if self.eventfile_lines > 500:
             self.new_eventfile()
-        self.history.add_hist(HistPoint(self.previous_event), self.hist_file)
-        self.hist_file.flush()
+        # >>> UNH-HOOK quad-phase: only Real (0 deg) records go into the history (pol plot, TE tab)
+        # JLab: self.history.add_hist(HistPoint(self.previous_event), self.hist_file)
+        # JLab: self.hist_file.flush()
+        if getattr(self.previous_event, 'quad_ref_deg', 0) in (0, None):
+            self.history.add_hist(HistPoint(self.previous_event), self.hist_file)
+            self.hist_file.flush()
+        # <<< UNH-HOOK quad-phase
 
         self.run_tab.update_event_plots()
         self.te_tab.update_event_plots()
@@ -366,14 +399,29 @@ class MainWindow(QMainWindow):
         self.event.base_time = self.baseline.stop_time
         self.event.base_file = self.baseline.base_file
         self.event.baseline = self.baseline.phase
+        # >>> UNH-HOOK quad-phase: an event at another reference angle gets the baseline taken at that angle
+        if getattr(self, 'quadrature', None) is not None:
+            self.quadrature.set_event_base(self.event, self.baseline)
+        # <<< UNH-HOOK quad-phase
 
     def set_cc(self, new_cc):
         """Set calibration constant"""
         self.config.controls['cc'].value = new_cc
+        # >>> UNH-HOOK te-fix: Run-tab CC box shows the CC in use; the session file saves that box
+        if hasattr(self, 'run_tab'):
+            self.run_tab.controls_lines['cc'].setText(str(new_cc))
+        # <<< UNH-HOOK te-fix
 
     def label_changed(self, new_label):
         """Update event label"""
         self.label = new_label
+        # >>> UNH-HOOK nmr-sim: in label-driven simulation the Event Label sets what the simulated target does
+        try:
+            from unh.nmr_sim.labels import set_label
+            set_label(new_label)
+        except ImportError:
+            pass
+        # <<< UNH-HOOK nmr-sim
 
     def channel_change(self, i):
         """Channel setting changed. Make new config."""
@@ -650,6 +698,10 @@ class ExitDialog(QDialog):
 
         QBtn = QDialogButtonBox.Ignore | QDialogButtonBox.Abort
         self.buttonBox = QDialogButtonBox(QBtn)
+        # >>> UNH-HOOK exit-guard: say plainly what each button does (Ignore closes mid-sweep; Abort keeps running)
+        self.buttonBox.button(QDialogButtonBox.Ignore).setText("Ignore. I am an expert and I understand the consequences.")
+        self.buttonBox.button(QDialogButtonBox.Abort).setText("Abort! I didn't mean to make this appear!")
+        # <<< UNH-HOOK exit-guard
         self.buttonBox.accepted.connect(self.accept)
         self.buttonBox.rejected.connect(self.reject)
 
