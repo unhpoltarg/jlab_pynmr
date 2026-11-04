@@ -56,6 +56,13 @@ class TuneTab(QWidget):
         self.avg_value.textChanged.connect(lambda: self.change_avg(int(self.avg_value.text())))
         self.avg_value.editingFinished.connect(lambda: self.avg_value.setStyleSheet('QLineEdit { background-color: #ffffff }'))
         self.tune_box.layout().addWidget(self.avg_value)
+        # >>> UNH-HOOK sweep-blocks: Sweeps for Running Average as 64 x N (whole tune chunks); JLab's box stays, hidden
+        try:
+            from unh.sweep_blocks import attach_tune_blocks
+            attach_tune_blocks(self)
+        except ImportError:
+            pass
+        # <<< UNH-HOOK sweep-blocks
         
         self.lower = QHBoxLayout()
         self.left_layout = QVBoxLayout()     # Left, Diode Side

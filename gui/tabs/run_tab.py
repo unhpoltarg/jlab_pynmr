@@ -202,6 +202,13 @@ class RunTab(QWidget):
         self.lock_button = QPushButton("Unlock",checkable=True)
         self.lock_button.clicked.connect(self.lock_pushed)
         self.controls_layout.addWidget(self.lock_button, len(self.parent.config.controls), 1)
+        # >>> UNH-HOOK sweep-blocks: Sweeps per Event as 64 x N (whole box chunks); JLab's box stays, hidden
+        try:
+            from unh.sweep_blocks import attach_sweep_blocks
+            attach_sweep_blocks(self)
+        except ImportError:
+            pass
+        # <<< UNH-HOOK sweep-blocks
         # self.reload_button = QPushButton("Reload Settings",checkable=False)
         # self.reload_button.clicked.connect(self.reload_pushed)
         # self.controls_layout.layout().addWidget(self.reload_button, len(self.parent.config.controls), 0)
@@ -399,7 +406,15 @@ class RunTab(QWidget):
         if self.parent.apply_pending_window():
             self.update_window_label()
         # <<< UNH-HOOK freq-window
+        # >>> UNH-HOOK quad-phase: choose this event's Phase Tune (Real/Imag alternation) before it starts
+        if getattr(self.parent, 'quadrature', None) is not None:
+            self.parent.quadrature.before_event()
+        # <<< UNH-HOOK quad-phase
         self.parent.new_event()                 # start new event in main window
+        # >>> UNH-HOOK quad-phase: record the event's quadrature fields
+        if getattr(self.parent, 'quadrature', None) is not None:
+            self.parent.quadrature.tag_event(self.parent.event)
+        # <<< UNH-HOOK quad-phase
         #self.parent.set_event_base()            # set current basline to this event
         try:
             from core.thread_manager import get_thread_manager
@@ -529,6 +544,10 @@ class RunTab(QWidget):
     def finish_run(self, message):
         '''Reset run controls to idle after the run stops'''
         self.publish_status_message(message)
+        # >>> UNH-HOOK quad-phase: leave the Config and the box on the Real tune
+        if getattr(self.parent, 'quadrature', None) is not None:
+            self.parent.quadrature.run_finished()
+        # <<< UNH-HOOK quad-phase
         #self.abort_button.setEnabled(False)
         self.lock_button.setEnabled(True)
         self.run_button.setText('Run')
@@ -831,6 +850,11 @@ class RunThread(BaseThread):
                     self._logger.error(f"Error in run loop: {e}")
                 break
                     
+        # >>> UNH-HOOK quad-phase: all sweeps are in, so set the next event's Phase Tune on this connection now
+        quad = getattr(self.tab_parent.parent, 'quadrature', None)
+        if quad is not None:
+            quad.after_sweeps(self.daq, self.rec_sweeps >= self.sweep_num, self._logger)
+        # <<< UNH-HOOK quad-phase
         self._logger.info(f"Run completed. Received {self.rec_sweeps} sweeps in {rec_chunks} chunks")
         
     def cleanup(self):

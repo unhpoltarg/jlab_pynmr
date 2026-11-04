@@ -29,7 +29,7 @@ _CAL_HALF_WIDTH_MHZ = 0.5
 _CAL_POINTS = 1001
 
 TRUTH_COLUMNS = ["unix_time", "t_sim_s", "segment", "P", "Q", "r", "larmor_MHz",
-                 "line_offset_MHz", "n_sweeps", "dC_pF", "phase_dac_deg"]
+                 "line_offset_MHz", "n_sweeps", "dC_pF", "phase_dac_deg", "phase_dac_v"]
 
 
 class Simulator:
@@ -103,6 +103,7 @@ class Simulator:
             "t_sim_s": float(t_s), "segment": st.name, "P": st.P, "Q": float(ratio_Q(r)),
             "r": r, "larmor_MHz": larmor, "line_offset_MHz": st.line_offset_MHz,
             "dC_pF": self.qmeter.dC_pF, "phase_dac_deg": self.qmeter.dphi_deg,
+            "phase_dac_v": self.qmeter.phase_v,
         }
         return phase, diode, truth
 
@@ -113,6 +114,7 @@ class Simulator:
         """
         with self.lock:
             t = self.clock.now_s()
+            self.qmeter.advance(self.clock.wall_s())
             phase, diode, truth = self.noiseless(freq_MHz, t)
             dp, dd = self.noise.sample(len(phase), n_sweeps)
             truth["n_sweeps"] = int(n_sweeps)
@@ -123,7 +125,7 @@ class Simulator:
     def set_dac(self, value, channel):
         """Forward a Tune-tab DAC setting to the Q-meter (thread-safe)."""
         with self.lock:
-            self.qmeter.set_dac(value, channel)
+            self.qmeter.set_dac(value, channel, self.clock.wall_s())
 
     # -- truth log ---------------------------------------------------------
     def _log_truth(self, truth):

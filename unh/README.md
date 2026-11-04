@@ -10,6 +10,10 @@ JLab does not need it, so it is kept out of the shared code and can be deleted c
 | `freq-window` | Interactive NMR frequency window on the Run tab | `tests/test_freq_window.py` | `gui/main_window.py`, `gui/tabs/run_tab.py`, `hardware/daq.py` |
 | `data-streamer` | Send each finished event to LabView-NMR-Fitter (below) | `data_streamer.py`, `data_streamer.yaml`, `tests/test_data_streamer.py` | `gui/main_window.py` |
 | `nmr-sim` | Simulated deuteron NMR as a Test data source, profile `TestSim` ([nmr_sim/README.md](nmr_sim/README.md)) | `nmr_sim/` | `hardware/daq.py`, `pynmr_config.yaml`, `.gitignore` |
+| `quad-phase` | Both NMR quadratures: Real/Imag Phase Tunes alternated between events, plus a phase-DAC calibration (below) | `quadrature/`, `tests/test_quadrature.py` | `gui/main_window.py`, `gui/tabs/run_tab.py`, `gui/tabs/base_tab.py`, `pynmr_config.yaml`, `.gitignore` |
+| `sweep-blocks` | Sweep counts as a fixed 64 × N: Run-tab Sweeps per Event (N default 10), Tune-tab running average (N default 1); 64-sweep tune chunks | `sweep_blocks.py`, `tests/test_sweep_blocks.py` | `gui/tabs/run_tab.py`, `gui/tabs/tune_tab.py`, `pynmr_config.yaml` |
+| `wing-points` | Run tab: "Wing points per side: N" for the wing fit (default from the Analysis-tab bounds), fitted points marked in dashed red | `wing_points.py`, `tests/test_wing_points.py` | `gui/main_window.py` |
+| `exit-guard` | Clearer button labels on the exit-while-running dialog | none | `gui/main_window.py` |
 | `fork-tools` | Repository tooling for the fork (local Claude Code notes) | none | `.gitignore` |
 
 The freq-window feature mostly lives inside JLab's own files, because it changes how the Run tab and
@@ -141,6 +145,71 @@ conda run -n pynmr --no-capture-output python -m pytest unh/tests
 
 `python -m unh.strip_unh --feature data-streamer --apply`. Deleting only `data_streamer.py` is also
 safe: the hook in `gui/main_window.py` imports it only if it exists.
+
+## Quadrature phase stepping (`quadrature/`)
+
+This feature records both quadratures of the NMR signal. The operator sets two Phase Tunes, Real and Imag.
+While the Run tab's **Quadrature** box is ticked, events alternate between them (0/90, abba, or
+0/90/180/270). Each event is still one record in the event file, tagged with `quad_*` fields.
+
+**Auto Calibrate Phase** on the Tune tab steps the phase DAC and fits the angle and gain of each tune.
+Calibration files go to `<event_dir>/quad_cal/`.
+
+**Auto Tune** on the Tune tab (`quadrature/autotune.py`): set each tune the sequence uses roughly by hand
+(within about 30°), then click it.
+- It pauses the Tune loop and steps the phase DAC through 5 values around each tune. It fits the complex
+  Q-curve W(f) and moves the tunes to the true angles. Then it starts the Tune loop again.
+- 0° is the absorptive direction at the centre frequency. That is the normal to the Q-curve's trace in the
+  complex plane there; the absorptive phase turns across the sweep as θ(f) = θ0 + 2 atan((f − f0)/γ).
+- The data can't choose between 0° and 180°, or between +90° and −90°; the hand tunes decide.
+- It works on the background Q-curve alone. A deuteron line centred in the window doesn't tilt the
+  result to first order, and `autotune: mask_khz` can leave bins out.
+- A pass is repeated, centred on the new tunes, while a target lies outside the steps around its tune.
+  Then one polish pass with tighter steps (±0.5 and ±1 %) around the new tunes gives the final answer.
+  Real/Imag take 13 + 13 steps of 64 sweeps, about 50 s on the box.
+- The result line gives how far each hand tune was off and each tune's detector gain relative to Real.
+  The plot shows the trace with the 0° and 90° directions. **Undo Auto Tune** puts the old tunes back.
+- Records go to `quad_cal/autotune_<time>.json` and are never taken for a calibration.
+
+**Run-tab plots** while Quadrature is ticked: a grid replaces JLab's three plots.
+- Columns are the stages (Raw Signal, Baseline Subtracted, Fit Subtracted); the top row is Real (0°), the bottom
+  row Imag (90°).
+- In cycle4, −1 × the 180° record is drawn over every 0° plot and −1 × the 270° record over every 90° plot.
+  On the Raw row they sit apart by twice the detector's DC offset.
+- A raw curve follows its event live; every other curve changes only when a record at its own angle finishes.
+
+Records at 90/180/270° go to the event file only: they are kept out of EPICS, history and the streamer.
+
+**Baselines** are taken and applied per angle, but selected as in normal mode. Take a baseline run with
+Quadrature on, select all its rows at once on the Baseline tab, and press Set Baseline.
+- The table gains Angle and Phase DAC (%) columns (after Time), and a line above Set Baseline says what each
+  angle will get.
+- Its two plots become a 2 × 2 grid: absorptive (0°, −1 × 180°) left, dispersive (90°, −1 × 270°) right; Selected
+  Baseline on top, Current Sweep minus Baseline (latest sweep at each angle) below.
+- Rows are averaged per angle, and within an angle only at one tune.
+- The Run tab shows a "Baselines:" line per angle (red if one is missing or from another tune).
+- Records carry `quad_base_ref_deg`, `quad_base_vout` and `quad_base_match`.
+
+**Wing fit size** (feature `wing-points`, `wing_points.py`): a "Wing points per side: N" box in the corner of
+the Run tab's Baseline Subtracted plot (and the quadrature grid's Real one) sets the Analysis tab's wing-fit bounds
+symmetrically, keeping JLab's outer 1 % skip. The default is what `analysis: wings` gives (148 of 512 points).
+A dashed red curve over the yellow fit marks the points used.
+
+**Dispersive records (90/270°)** get a cubic background fitted jointly with the Kramers–Kronig transform of the
+latest absorption (`quadrature/dispersion.py`, settings under `dispersion:`). JLab's wing fit eats the
+dispersion's long tails. The fitted KK curve is drawn dashed on the Imag Fit Subtracted plot; records carry
+`quad_sub_method`, `quad_kk_scale` and `quad_kk_curve`.
+
+The design, record schema, hardware notes (SCPHS-51+ shifter) and the limits of the calibration are in
+[`notes/quadrature_phase_design.md`](../notes/quadrature_phase_design.md).
+
+- **Enable:** `quadrature.yaml` (`enable: False`; on for the `TestSimQuad` profile). Enabling only adds the
+  controls, and the checkbox starts unticked at every launch.
+- **Try it without hardware:** `python pynmr_main.py -p TestSimQuad`. This is the simulator with a
+  datasheet-shaped phase shifter.
+- **Sample output for readers:** `quadrature/samples/`.
+- **Tests:** `unh/quadrature/tests/`, `unh/tests/test_quadrature.py`.
+- **Remove:** `python -m unh.strip_unh --feature quad-phase --apply`.
 
 ## Tests
 

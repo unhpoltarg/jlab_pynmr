@@ -188,6 +188,8 @@ class DataStreamer(BaseThread):
 
     def wants(self, event):
         """True if this event's channel species is one we stream"""
+        if getattr(event, 'quad_ref_deg', None) not in (None, 0):   # quadrature: only Real records are absorptive
+            return False
         species = self.cfg.get('species') or []
         if not species:
             return True

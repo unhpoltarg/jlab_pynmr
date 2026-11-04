@@ -43,6 +43,22 @@ FEATURES = {
         'about': 'Simulated deuteron NMR as a Test-mode data source (TestSim profile)',
         'paths': ['unh/nmr_sim'],
     },
+    'quad-phase': {
+        'about': 'Both NMR quadratures: Real/Imag Phase Tunes alternated between events, phase-DAC calibration',
+        'paths': ['unh/quadrature', 'unh/tests/test_quadrature.py'],
+    },
+    'sweep-blocks': {
+        'about': 'Sweep counts as 64 x N (Run-tab Sweeps per Event, Tune-tab running average); 64-sweep tune chunks',
+        'paths': ['unh/sweep_blocks.py', 'unh/tests/test_sweep_blocks.py'],
+    },
+    'wing-points': {
+        'about': 'Run tab: wing fit size as points per side, with the fitted points marked in dashed red',
+        'paths': ['unh/wing_points.py', 'unh/tests/test_wing_points.py'],
+    },
+    'exit-guard': {
+        'about': 'Clearer button labels on the exit-while-running dialog',
+        'paths': [],
+    },
     'fork-tools': {
         'about': 'Repository tooling for the UNH fork (local Claude Code notes)',
         'paths': [],
