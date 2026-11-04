@@ -55,6 +55,14 @@ FEATURES = {
         'about': 'Run tab: wing fit size as points per side, with the fitted points marked in dashed red',
         'paths': ['unh/wing_points.py', 'unh/tests/test_wing_points.py'],
     },
+    'mcclellan-fit': {
+        'about': 'Analysis tab: Optimized McClellan Fits (Equilibrium, ssRF) using the online fitter engine',
+        'paths': ['unh/mcclellan.py', 'unh/mcclellan.yaml', 'unh/tests/test_mcclellan.py'],
+    },
+    'base-drag': {
+        'about': 'Baseline tab fixes: drag/shift/Ctrl-A selection sets the baseline; Set Baseline twice keeps dates',
+        'paths': ['unh/tests/test_base_drag.py'],
+    },
     'exit-guard': {
         'about': 'Clearer button labels on the exit-while-running dialog',
         'paths': [],

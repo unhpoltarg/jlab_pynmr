@@ -144,7 +144,8 @@ class CalibrationThread(BaseThread):
                 self.emit_reply({'step': i + 1, 'of': len(plan), 'vout': step['vout'], 't_s': time.monotonic() - t0,
                                  'kind': step['kind'],
                                  'mean_phase': None if phase is None else float(np.mean(phase)),
-                                 'mean_diode': None if diode is None else float(np.mean(diode))})
+                                 'mean_diode': None if diode is None else float(np.mean(diode)),
+                                 'phase': phase, 'diode': diode})        # for the Tune tab's live plots
             if rec['status'] == 'running' and int(cal.get('settle_test_chunks', 0)) > 0:
                 rec['settle_test'] = self._settle_test(int(cal['settle_test_chunks']), settle_s)
         except Exception as e:
@@ -270,7 +271,8 @@ class AutoTuneThread(CalibrationThread):
             self.emit_reply({'step': i + 1, 'of': len(plan), 'pass': n, 'polish': kind == 'polish',
                              'vout': step['vout'], 't_s': time.monotonic() - t0, 'kind': step['kind'],
                              'mean_phase': None if phase is None else float(np.mean(phase)),
-                             'mean_diode': None if diode is None else float(np.mean(diode))})
+                             'mean_diode': None if diode is None else float(np.mean(diode)),
+                             'phase': phase, 'diode': diode})            # for the Tune tab's live plots
         this = {'pass': n, 'kind': kind, 'centres': {str(a): v for a, v in centres.items()},
                 'offsets': list(offsets), 'steps': steps, 'analysis': None}
         rec['passes'].append(this)
@@ -346,6 +348,7 @@ class AutoTuneThread(CalibrationThread):
                     'theta_ref_err_deg': final['trace']['theta_ref_err_deg'],
                     'arc_deg': final['trace']['arc_deg'], 'ref_MHz': final['trace']['ref_MHz'],
                     'residual_rel': final['trace']['residual_rel'], 'passes': n, 'polish': polish,
+                    'zero_rule': final['trace'].get('zero_rule'), 'zero_warning': res.get('zero_warning'),
                 }
                 rec['status'] = 'ok'
                 if self.selected in new:

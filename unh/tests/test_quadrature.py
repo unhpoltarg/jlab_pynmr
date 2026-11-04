@@ -493,3 +493,62 @@ def test_dispersive_records_get_the_joint_fit(tmp_path):
     # window, which no in-window transform can know) goes into the background with the 0.2 offset
     assert np.sqrt(np.mean((fitsub - d)[3:-3] ** 2)) < 0.05 and len(e90.quad_kk_curve) == len(f)
     assert ctrl.absorption_for(np.linspace(32.0, 33.0, 64)) is None            # another window: no reference
+
+
+def test_frown_rule_picks_the_absorptive_side_opposite_the_diode():
+    from unh.quadrature import autotune
+    f = np.linspace(32.3, 33.1, 32)
+    x = (f - 32.7) / 0.4
+    W = (1.0 + 0.3 * x ** 2) + 1j * (0.8 * x)       # absorptive along +real with a smile, dispersive along +imag
+    smile = (0.2, 0.001)
+    frown = (-0.2, 0.001)
+    assert autotune.frown_zero(f, W, 0.0, smile)[0] == pytest.approx(180.0)   # diode smile -> phase frown
+    assert autotune.frown_zero(f, W, 0.0, frown)[0] == pytest.approx(0.0)
+    assert autotune.frown_zero(f, W, 0.0, (1e-5, 1e-3))[0] is None             # can't tell: the hand tune decides
+
+
+def test_autotune_cycle4_swaps_real_and_180_to_follow_the_frown_rule(qapp, sim_config, tmp_path):
+    from unh.nmr_sim import simulator as simmod
+    from unh.quadrature import autotune
+    from unh.quadrature.calibration import AutoTuneThread
+    hand = {0: 0.245, 90: 0.40, 180: 0.515, 270: 0.59}     # Real by hand on the side that curves like the diode
+    t = AutoTuneThread(sim_config, qs.DEFAULTS['cal'], hand, restore_vout=hand[0],
+                       at=copy.deepcopy(qs.DEFAULTS['autotune']), selected=0, out_dir=str(tmp_path / 'qc'))
+    t.setup()
+    t.execute()
+    t.cleanup()
+    rec = t.record
+    assert rec['status'] == 'ok', rec['error']
+    new = {int(a): v for a, v in rec['result']['tunes'].items()}
+    q = simmod._SIM.qmeter
+    f = np.linspace(32.3, 33.1, 512)
+    q.set_dac(new[0], 1)
+    ph, di = q.detect(q.voltage(f))
+    assert np.sign(autotune.wing_curvature(f, ph)) != np.sign(autotune.wing_curvature(f, di))
+    assert abs(new[0] - hand[180]) < 0.03 and abs(new[180] - hand[0]) < 0.03   # Real and 180 swapped sides
+    assert not rec['result'].get('zero_warning')
+    t.reply.disconnect()
+    del t
+    gc.collect()
+
+
+def test_signal_area_has_a_line_per_angle_updated_only_by_its_own_records(tmp_path):
+    fake = FakeMain(tmp_path)
+    ctrl = controller(fake)
+    ctrl.sched.sequence = [0, 90, 180, 270]
+    ctrl.sched.active = True
+    shown = {}
+    fake.run_tab = types.SimpleNamespace(
+        area_value=types.SimpleNamespace(setText=lambda t: shown.__setitem__('area', t)),
+        pol_value=types.SimpleNamespace(setText=lambda t: shown.__setitem__('pol', t)))
+    rec = lambda angle, area: types.SimpleNamespace(quad_ref_deg=angle, area=area, pol=0.1,
+                                                    scan=types.SimpleNamespace(freq_list=np.zeros(3), phase=np.zeros(3)),
+                                                    fitsub=np.zeros(3))
+    ctrl.on_event_finished({'event': rec(0, 1.5)})
+    assert '0\u00b0: 1.500000' in shown['area'] and '90\u00b0: waiting' in shown['area']
+    ctrl.on_event_finished({'event': rec(90, 0.25)})
+    ctrl.on_event_finished({'event': rec(180, -1.4)})
+    assert '0\u00b0: 1.500000' in shown['area'] and '90\u00b0: 0.250000' in shown['area']
+    assert '180\u00b0: -1.400000' in shown['area'] and '270\u00b0: waiting' in shown['area']
+    ctrl.on_event_finished({'event': rec(0, 1.6)})
+    assert '0\u00b0: 1.600000' in shown['area'] and '90\u00b0: 0.250000' in shown['area']

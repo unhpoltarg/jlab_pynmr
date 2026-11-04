@@ -363,3 +363,16 @@ def test_tag_only_in_main_window_and_unh():
                          capture_output=True, text=True).stdout.split()
     assert 'gui/main_window.py' in out
     assert all(path in ('gui/main_window.py', 'changelog/changelog.md') or path.startswith('unh/') for path in out)
+
+
+def test_line_sign_flips_the_line_sent_to_the_fitter():
+    """UNH convention (2026-11-04): positive P is a dip at the true 0 deg; the shipped settings flip it for the fitter,
+    except for the TestSim profile, whose positive P is upward."""
+    assert ds.load_stream_config('Deuteron')['line_sign'] == -1.0
+    assert ds.load_stream_config('TestSim')['line_sign'] == 1.0
+    assert ds.line_scale({'amplitude_scale': 2.0, 'line_sign': -1.0}) == -2.0
+    bad = dict(ds.DEFAULTS, enable=True)
+    import tempfile, yaml as _yaml
+    with tempfile.NamedTemporaryFile('w', suffix='.yaml', delete=False) as fh:
+        _yaml.safe_dump({'enable': True, 'line_sign': 0.5}, fh)
+    assert ds.load_stream_config(path=fh.name)['enable'] is False

@@ -48,6 +48,8 @@ autotune:
     max_passes: 3       # repeat, centred on the new tunes, while a target lies outside the steps
     polish: True        # then one tighter pass around the new tunes (about 25 s more for Real/Imag)
     polish_offsets: [-0.01, -0.005, 0.0, 0.005, 0.01]
+    zero_by_curvature: True  # 0 deg = the absorptive setting whose phase curves opposite the diode (diode smile ->
+                             # phase frown, as JLab tunes); False: the absorptive setting nearer the hand Real tune
     settle_ms: 1
     bins: 32
     gain_order: 1
@@ -59,5 +61,10 @@ autotune:
 profiles:
     TestSimQuad:
         enable: True
+        default_tunes:      # the simulator's frown side (diode smile, phase frown = true 0 deg)
+            0: 0.238
+            90: 0.4076
+            180: 0.5063
+            270: 0.5922
 #   Deuteron:
 #       enable: True

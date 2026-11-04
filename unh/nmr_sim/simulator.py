@@ -21,6 +21,7 @@ from .params import resolve
 from .qmeter import QMeter, QMeterParams
 from .susceptibility import Susceptibility
 from .timeline import Timeline, p_te
+from .labels import LabelScenario, current_label
 
 GAMMA_D_MHZ_PER_T = 6.536   # deuteron gyromagnetic ratio / 2 pi, MHz/T
 
@@ -57,6 +58,7 @@ class Simulator:
         self.chi.coupling = self._calibrate_coupling()
         self.P_te = p_te(self.larmor0_MHz, c["te_temp_K"])
         self.timeline = Timeline(c["timeline"], self.P_te)
+        self.scenario = LabelScenario(self.P_te, c["labels"]) if c["labels"]["enable"] else None
         self.noise = NoiseModel(self.rng, **c["noise"])
         self.clock = clock if clock is not None else SimClock(c["speed"], c["start_at_s"])
         self.lock = threading.Lock()
@@ -93,7 +95,10 @@ class Simulator:
         Includes the configured drift (deterministic); excludes white noise.
         """
         freq_MHz = np.asarray(freq_MHz, dtype=float)
-        st = self.timeline.state(t_s)
+        if self.scenario is not None:
+            st = self.scenario.state(t_s, current_label())        # the Run tab's Event Label decides
+        else:
+            st = self.timeline.state(t_s)
         larmor = self.larmor0_MHz + st.line_offset_MHz
         chi = self.chi.chi_eff(freq_MHz, larmor, st.P)
         phase, diode = self.qmeter.detect(self.qmeter.voltage(freq_MHz, chi))
@@ -117,6 +122,9 @@ class Simulator:
             self.qmeter.advance(self.clock.wall_s())
             phase, diode, truth = self.noiseless(freq_MHz, t)
             dp, dd = self.noise.sample(len(phase), n_sweeps)
+            if self.scenario is not None and truth["segment"] == "junk":
+                bounce, factor = self.scenario.junk(self.rng, freq_MHz, n_sweeps)
+                dp = dp * factor + bounce
             truth["n_sweeps"] = int(n_sweeps)
             truth["unix_time"] = datetime.datetime.now().timestamp()
             self._log_truth(truth)

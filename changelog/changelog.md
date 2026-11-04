@@ -15,6 +15,179 @@ Conventions:
 
 ## 2026-11-04
 
+### Every analysis failed after a second Set Baseline (JLab bug); Auto Tune trace fit; Wing bins box width
+
+**What**
+- `gui/tabs/base_tab.py` (`UNH-HOOK base-drag`): `print_to_recent` now writes a copy of the baseline. JLab's code
+  turned the dates in the baseline's own dict into text while writing the recent-baselines file. The next Set
+  Baseline built a baseline from that dict, with a text `stop_time`, and every analysis then failed with
+  "Analysis failed: 'str' object has no attribute 'strftime'". Raw plots kept updating, but the Baseline Subtracted
+  and Fit Subtracted plots froze. The quadrature per-angle baselines go through the same writer, so they were hit too.
+- `unh/quadrature/autotune.py`: `fit_trace` is now a geometric fit. A circle (Pratt conic) fitted to the trace
+  near the centre frequency gives the normal there; the error comes from a jackknife, folded mod 180°.
+  Against the simulator's truth it is within 0.45°, and the points scatter off the fitted curve by about the noise.
+- `unh/wing_points.py`: the Wing bins box sizes itself to fit four digits (it showed "1" for values over 100).
+- Tests: `unh/tests/test_base_drag.py` presses Set Baseline twice and checks that the dates stay dates for the
+  ordinary and all four per-angle baselines.
+
+**Why**
+- Ells: the Baseline Subtracted and Fit Subtracted plots stopped working in Polarize and TE. The log showed the
+  strftime failure on every event after a second Set Baseline. The DAQ computer logged the same failure 57 times
+  in October, so it is very likely this bug. It is in JLab's code, so it could go upstream.
+- Ells: the Auto Tune trace fit didn't look good, and the Wing bins box was too small.
+
+### Simulator follows the Event Label; Baseline-tab drag selection fixed
+
+**What**
+- `unh/nmr_sim/labels.py` (new), `params.py` (`labels:` settings, off by default), `simulator.py`: in label-driven mode
+  the simulated target follows the Event Label:
+  - None/Baseline: line moved 1.2 MHz out of the window, P relaxing towards TE with T1;
+  - TE: P at 5 T and 1 K, about 0.1 %;
+  - Polarize: spin-up from the current P towards 40 %;
+  - Junk: P frozen, white noise ×25 and a random offset, tilt and bow on each chunk.
+  - P carries over between labels.
+  - On for TestSimQuad. `UNH-HOOK nmr-sim` in `MainWindow.label_changed` passes the label on.
+- `gui/tabs/base_tab.py` (new feature `base-drag`): the Baseline tab also reacts to selection changes. JLab
+  connected only `clicked`, which a drag never fires (press and release are on different rows), so a dragged
+  selection kept only the first row. Now a drag, shift-click or Ctrl-A over a whole run makes all four
+  per-angle baselines.
+- Tests:
+  - `unh/nmr_sim/tests/test_labels.py`: mapping, continuity, TE value, and the simulator following the label;
+  - `unh/tests/test_base_drag.py`: the real MainWindow, a drag-style selection, and four baselines from their own rows.
+
+**Why**
+- Ells: let the label tell the simulator what is happening; and dragging over many baselines should average each
+  phase's rows and make all four baselines at once.
+- GUI check: Polarize gave a growing line (50 mV), Junk was 9× noisier and bounced, and TE gave a 1.5 mV line.
+
+### Knock-on effects of the sign convention; Auto Tune trace in the true 0°/90° frame
+
+**What**
+- `unh/data_streamer.py`/`.yaml`: new `line_sign` (+1 or −1; anything else disables streaming), applied with
+  `amplitude_scale` (`line_scale()`) to the lines sent to the fitter, and recorded in the message. Shipped as −1:
+  at the true 0° positive P is a dip, and the fitter's McClellan model wants it upward. The TestSim profile keeps +1.
+- `unh/mcclellan.py`: the McClellan options use the same factor, and flip the fitted curve back for PyNMR's plots.
+- `pynmr_config.yaml` (TestSimQuad, inside the quad-phase block): `diode_bg_V: 1.92`, a positive diode like the UNH
+  box, so the simulated diode is a smile. `quadrature.yaml`: TestSimQuad starts on its frown side (0.238 / 0.4076 /
+  0.5063 / 0.5922). The hardware default tunes were already on the frown side (0.514 = the 10/27 frown).
+- `unh/quadrature/ui.py`: the Auto Tune trace is drawn in the true 0°/90° frame, each axis scaled to its data, so
+  its bow shows; the 0° and 90° directions are the axes.
+- Technote: take a new TE at the true 0°; the old CC has the wrong sign. Quick Start has the same step.
+- Tests: `line_sign` in the streamer settings; a dip with `line_sign` −1 gives the right P, and without it doesn't.
+
+**Why**
+- Ells asked for every PyNMR knock-on of the convention to be fixed; nothing outside the PyNMR repos is changed.
+- Simulator with hardware polarity: Auto Tune ends on the phase frown ("phase frown opposite the diode smile"), and
+  the McClellan option gives positive P from the downward lines.
+- The trace drawn at equal scales looked like a straight line. Shown with its bow, the fitted trace curve doesn't
+  follow the simulated bow exactly. The direction at the centre, which is what Auto Tune uses, was checked within
+  0.5° earlier.
+
+### Sign convention: 0 deg = diode smile, phase frown; past UNH cooldowns ran at 180 deg
+
+**What**
+- Technote, Concepts: the UNH sign convention, from Ells (2026-11-04).
+  - For the deuteron, m = +1 is lowest and −1 highest, so positive P absorbs RF energy. At the true 0° setting that
+    gives a dip (a downward line), and negative P an upward line.
+  - On this Q-meter that setting has the phase Q-curve a frown while the diode is a smile, which is the setting Auto
+    Tune picks.
+- No code change: Auto Tune already chooses the phase curvature opposite to the diode.
+
+**Why**
+- The 2026-10-27 data: during the spin-up (phase DAC 0.389, 19:13–20:22 UTC) the diode and the phase were both
+  smiles, the line pointed up, and P was recorded as +1 → +36 %. At 0.535–0.547 (frown, 20:25–20:28 UTC) the line
+  pointed down.
+- So past UNH cooldowns ran at the 180° setting. Their P values hold wherever the CC came from a TE at the same
+  setting, because the CC carries the sign.
+- Open question: what sign the online fitter (and the McClellan options) expect. Its model assumes positive
+  absorption for positive P, so at the new 0° the line may need flipping for it (`amplitude_scale: -1`).
+
+### Auto Tune picks the frown and shows its sweeps; Signal Area per angle
+
+**What**
+- `unh/quadrature/autotune.py`: 0° is now the absorptive setting whose phase output curves opposite to the diode
+  (`frown_zero`, `wing_curvature` on the outer half of the window, a 3-standard-error test). Otherwise the hand Real
+  tune decides.
+  - In cycle4 a Real set on the wrong side swaps with 180°.
+  - With a pair, the nearer setting is kept and a red warning says to move Real about half a turn.
+  - Each target is solved on the steps of the nearest measured tune, in the same turn as those steps.
+  - Setting `autotune: zero_by_curvature`.
+- `calibration.py` and `ui.py`: each Auto Tune and Auto Calibrate step's sweep goes to the Tune tab's Diode and
+  Phase plots.
+- `controller.py`: in quadrature the Run tab's Signal Area shows one line per angle, each from its own latest record.
+
+**Why**
+- Ells:
+  - JLab tunes Real so the phase is a frown when the diode is a smile;
+  - Auto Tune should follow that;
+  - Auto Tune should show the sweeps it uses;
+  - the area should be shown per phase.
+- The 10/27 hall data agree: diode +229 mV (smile), 0° phase −101 mV (frown), 180° +157 mV (smile).
+- Simulator: Real set on either side ends on the side opposite the diode; the cycle4 swap test passes.
+
+### Analysis tab: Optimized McClellan Fits (Equilibrium, ssRF) (`mcclellan-fit`)
+
+**What**
+- New result options run the online fitter's own `FitEngine` (LabView-NMR-Fitter `online_fitter/engine.py`,
+  imported from the sibling folder, not copied). Each event goes in as the streamer would send it: same signal and
+  amplitude_scale, with the axis rebuilt by the fitter's `protocol.sweep_arrays`.
+- Equilibrium: the fast fit (r and phase free, constants fixed), P by the ratio method.
+- ssRF: the hole-burnt fit.
+- Shared panel: material (ND3, d-butanol, d-propanediol); an Update Constants button (full fit on the last 10
+  equilibrium lines, in a thread); a status line, red while the constants are the preset's; constants saved and
+  reloaded per material (`<event_dir>/mcclellan/constants_<material>.json`, the fitter's export format).
+- Quadrature: only 0° records are fitted and buffered.
+- `UNH-HOOK mcclellan-fit` in `AnalysisTab._init_result_options`. New `unh/mcclellan.yaml` and
+  `unh/tests/test_mcclellan.py`.
+
+**Why**
+- Ells: use what the fitter uses for these fits.
+- Checks, using lines from the fitter's own model on the streamer's axis:
+  - P recovered to ±0.2 % at +5, +25 and −30 %, and the fitted curve lies on the data;
+  - Update Constants fixes a 3× amplitude error; the constants round-trip through export/import.
+- Two findings:
+  - The fitter's fast fit misreads small negative P (−5 % → +3.6 %, −15 % → +10.9 %; it runs to the −125° phase
+    bound). The test marks this as a known failure, so it flags the day the fitter is fixed.
+  - In the simulator, P before Update Constants is about 1.7× too high (the preset amplitude scale is 1.6× too
+    small). After Update Constants on strong lines it is 1.12× the truth. The lineshape alone, phase mixing and
+    the wing fit were each checked exact. The rest is the simulated Q-meter's distortion of the line; the fitted
+    A, ωQ and η match the preset to 1 %.
+
+### Deuteron Half-width up to 5000 kHz; larger Auto Tune trace plot
+
+**What**
+- `pynmr_config.yaml`: `window_limits: hw_max_khz: 5000` in the Deuteron, TestSim and TestSimQuad profiles. In
+  Deuteron it is a `UNH-HOOK freq-window` block; the other two are already inside UNH blocks. Proton and Test keep
+  the 2000 kHz code default.
+- `unh/quadrature/ui.py`: the Auto Tune trace plot takes all the open space under the result line (it had about half).
+
+**Why**
+- The 2000 kHz bound was a placeholder from the freq-window feature, not a hardware number. The R&S SMA100A
+  (datasheet v06.01, p. 14) allows a maximum FM deviation of rm × 10 MHz in FM mode NORMAL, with rm = 1/2 for
+  carriers up to 46.875 MHz, so 5 MHz at the deuteron frequency.
+  - Deviation accuracy is specified only up to half that (2.5 MHz).
+  - PyNMR never sets FM:MODE, and ±400 kHz windows work, so the instrument is in NORMAL. LOW NOISE would allow
+    only 3.1 kHz.
+- Ells: a wider window makes tuning easier, so allow the full maximum.
+
+### Technote: Quick Start Guide, TE and Analysis-tab sections; "Wing bins" box in the title row
+
+**What**
+- `notes/nmr_tuning_operation_technote.tex/.pdf`:
+  - A Quick Start Guide before the contents: 15 short steps from starting PyNMR to taking data, with screenshots
+    of the Tune, Run and Baseline tabs marked with red numbers matching the steps (`notes/figures/qs_*_marked.png`).
+  - New sections "Taking and using a TE" and "The Analysis tab", each with a marked screenshot.
+  - The purple result curve is now explained.
+- `unh/wing_points.py`: the box reads "Wing bins" and sits in the plot's title row, not on the plot.
+- `unh/quadrature/ui.py`: the Auto Tune trace (Real vs Imag) has its own plot in the open space under the result
+  line on the Tune tab, shown once Auto Tune has a result. The right-hand plot always shows mean output against
+  phase DAC.
+
+**Why**
+- Ells: most readers need a quick refresher, with the background after it; and TE and Analysis-tab instructions
+  were missing.
+- The box covered part of the plot.
+
 ### Merged `unh_dev/te_fix` into `unh_dev/quadrature_phase`
 
 **What**

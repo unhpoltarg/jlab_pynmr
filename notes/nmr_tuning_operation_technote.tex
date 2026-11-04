@@ -13,6 +13,10 @@
 \newcommand{\code}[1]{\texttt{\begingroup\def\_{\textunderscore\allowbreak}#1\endgroup}}
 \pdfstringdefDisableCommands{\def\code#1{#1}}
 \newcommand{\btn}[1]{\textsf{\textbf{#1}}}   % a GUI button or control
+\usepackage{tikz}
+% \mk{n}: the red numbered marker drawn on the screenshots
+\DeclareRobustCommand{\mk}[1]{\tikz[baseline=(m.base)]\node[circle,fill=red!80!black,text=white,inner sep=1.2pt,
+  minimum size=1.15em,font=\sffamily\bfseries\footnotesize](m){#1};}
 \setlength{\emergencystretch}{3em}
 \setlist{itemsep=2pt,topsep=3pt}
 
@@ -49,6 +53,75 @@ checked against the built-in simulator. \textbf{Auto Tune, the split plots, the 
 dispersive background and the $64\times N$ sweep controls have not yet been run on the Hall~B box.}
 \end{abstract}
 
+
+%=====================================================================================================
+\section*{Quick Start Guide}
+\addcontentsline{toc}{section}{Quick Start Guide}
+\label{sec:quick}
+For operators who have done this before. Each red number \mk{n} on the screenshots (Figs.~\ref{fig:qs-tune}--\ref{fig:qs-base})
+is the step with that number. Everything after this guide is background and detail.
+
+\begin{enumerate}[leftmargin=2.2em,itemsep=3pt]
+\item \textbf{Start PyNMR} on the DAQ computer, then start the online fitter if you use it:
+\begin{verbatim}
+conda deactivate          # repeat until no environment is active
+conda activate pynmr312
+python pynmr_main.py -p Deuteron
+\end{verbatim}
+\item \mk{2} \textbf{Run tab:} set \btn{Center Freq} (the Larmor frequency) and \btn{Half-width}, then \btn{Apply Window}.
+  (In the \code{TestSimQuad} simulator the \btn{Event Label} also drives the target: None/Baseline, TE, Polarize, Junk.)
+\item \mk{3} \textbf{Sweeps per Event} $=64\times N$: \btn{Unlock}, set $N$ (default 10), \btn{Set}.
+\item \mk{4} \textbf{Tune tab:} \btn{Run} the tune loop and tune the tank with \btn{Diode Tune Control}.
+\item \mk{5} \textbf{Rough phase tunes:} select \btn{Real (0°)} and set the \btn{Phase Tune} by eye so the Q-curve looks
+  absorptive; select \btn{Imag (90°)} and set it about a quarter turn away (cycle4: also $180^\circ$, $270^\circ$).
+  Within about $30^\circ$ is enough. Last cooldown's tunes are loaded as defaults.
+\item \mk{6} \textbf{Auto Tune} (about 50~s; the tune loop pauses and restarts by itself).
+\item \mk{7} \textbf{Check} the result line (how far each tune was off, $\pm$ error) and the trace plot. Wrong?
+  \btn{Undo Auto Tune}.
+\item \mk{8} \textbf{Auto Calibrate Phase} (about 90~s), only at the start of a cooldown, after an RF hardware change,
+  or after the centre frequency moved by more than 0.05~MHz.
+\item[] \textbf{Sign:} at the true $0^\circ$ (diode smile, phase frown) positive P is a downward line. Take a TE there
+  before trusting P: a CC from the old $180^\circ$ setting has the wrong sign (\S\ref{sec:concepts}).
+\item \mk{9} \textbf{Stop the tune loop.} On the Run tab choose the sequence (pair, abba or cycle4) and tick
+  \btn{Quadrature}. If it won't tick, the reason is shown in red under it.
+\item \mk{10} \textbf{Baseline run:} move the field so the line is out of the window, set Event Label to Baseline,
+  \btn{Run} a few complete cycles, \btn{Stop}.
+\item \mk{11} \textbf{Baseline tab:} \btn{Select Current Eventfile}; select the whole baseline run (click its first row,
+  shift-click its last); read the summary line; \btn{Set Baseline}.
+\item \mk{12} \textbf{Run tab:} the \btn{Baselines} line must say ok for every angle.
+\item \textbf{Take data:} field back on the line, Event Label as needed, \btn{Run}.
+\item \mk{14} \textbf{Wing bins} (on Baseline Subtracted Real): adjust until the dashed red part of the yellow fit stays
+  clear of the line.
+\item \textbf{Stop} with \btn{Stop}. If the exit dialog appears, choose \btn{Abort! I didn't mean to make this appear!}
+\end{enumerate}
+Also: a TE (\S\ref{sec:te}); the Analysis tab (\S\ref{sec:analysis}); anything in red (\S\ref{sec:trouble}).
+
+\begin{figure}[p]
+\centering
+\includegraphics[width=\textwidth]{qs_tune_marked.png}
+\caption{Quick Start, Tune tab. \mk{4} \btn{Run} the tune loop; \btn{Diode Tune Control}. \mk{5} the tune selector
+(\btn{Real (0°)}, \btn{Imag (90°)}, $180^\circ$, $270^\circ$, each with its phase DAC setting) and the \btn{Phase Tune} box.
+\mk{6} \btn{Auto Tune} (\btn{Undo Auto Tune} beside it). \mk{7} the result line and, under it, the trace plot (red
+dashes: the $0^\circ$ direction; orange: $90^\circ$). \mk{8} \btn{Auto Calibrate Phase}. Right: mean output against
+phase DAC for the scan.}
+\label{fig:qs-tune}
+\vspace{1em}
+\includegraphics[width=\textwidth]{qs_run_marked.png}
+\caption{Quick Start, Run tab (cycle4 run, simulator). \mk{2} window: \btn{Center Freq}, \btn{Half-width},
+\btn{Apply Window}. \mk{3} Sweeps per Event $64\times N$. \mk{9} \btn{Quadrature} and the sequence. \mk{10} \btn{Run}.
+\mk{12} the \btn{Baselines} line. \mk{14} \btn{Wing bins}, with the fitted points dashed red on the yellow fit.}
+\label{fig:qs-run}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{qs_base_marked.png}
+\caption{Quick Start, Baseline tab. \mk{11} \btn{Select Current Eventfile}; select all rows of the baseline run (the
+Angle and Phase DAC columns show each row's setting); check the summary line above \btn{Set Baseline}; click it.
+Right: each angle's baseline (top) and the current sweep minus it (bottom), absorptive left, dispersive right.}
+\label{fig:qs-base}
+\end{figure}
+\clearpage
 \tableofcontents
 \bigskip
 
@@ -124,7 +197,11 @@ profiles:
         enable: True
 \end{verbatim}
 The simulator profile \code{TestSimQuad} has them on already, and runs with no hardware:
-\code{python pynmr\_main.py -p TestSimQuad}.
+\code{python pynmr\_main.py -p TestSimQuad}. In it the Run tab's \btn{Event Label} decides what the simulated target
+does: \emph{None} or \emph{Baseline}, the line moved out of the window (P relaxes towards TE); \emph{TE}, thermal
+equilibrium at 5~T and 1~K (about 0.1\,\%); \emph{Polarize}, a spin-up from wherever P is; \emph{Junk}, a very noisy,
+bouncing line that is useless for anything. The simulator has no temperature reading, so a TE can't be completed
+on the TE tab there.
 
 %=====================================================================================================
 \section{Concepts}
@@ -141,6 +218,24 @@ not, so the pair differences
   \label{eq:pairs}
 \end{equation}
 are free of detector offsets.
+
+\paragraph{Which way is $0^\circ$: the UNH sign convention (E.~Long, 2026-11-04).} For the deuteron the $m=+1$ level
+is lowest, $0$ in the middle and $-1$ highest. With positive P the spin system takes energy from the RF, so at the
+true $0^\circ$ setting a positive polarization gives a \emph{dip}, a downward-pointing line, and a negative
+polarization an upward one. On this Q-meter that $0^\circ$ setting is the one where the phase Q-curve is a
+\textbf{frown} while the diode is a \textbf{smile}. The 2026-10-27 data agree: at phase DAC 0.535--0.547 (frown) the
+line pointed down, at 0.389--0.40 (smile) up. \textbf{Past UNH cooldowns ran at the $180^\circ$ setting} (smile),
+with upward lines for positive P; their P values are still right wherever the CC came from a TE taken at the same
+setting, because the CC carries the sign. Auto Tune now enforces the frown (\S\ref{sec:autotune}).
+\begin{itemize}
+\item \textbf{Take a new TE after moving to the true $0^\circ$.} A CC from a TE at the old $180^\circ$ setting has the
+  wrong sign there, so P reads with the wrong sign until a TE is taken at the new setting.
+\item The online fitter's McClellan model (and PyNMR's Optimized McClellan Fits) wants positive P as an \emph{upward}
+  line, so the streamer flips the line before sending (\code{line\_sign: -1} in \code{unh/data\_streamer.yaml}).
+  Set it to $+1$ only for data taken at the old setting. The TestSim profile keeps $+1$.
+\item The TestSimQuad simulator has the UNH box's diode polarity (a smile) and starts on its frown side, so it
+  behaves like the hardware.
+\end{itemize}
 
 \paragraph{The phase DAC.} The reference phase is set by a Mini-Circuits voltage-controlled phase shifter
 (SCPHS-51+ on the deuteron box) driven by the box's phase DAC. The Tune tab shows the DAC setting as a
@@ -170,7 +265,10 @@ Kramers--Kronig relation between $\chi'$ and $\chi''$.
 \label{sec:window}
 In NMR Settings on the Run tab, \btn{Center Freq (MHz)} and \btn{Half-width $\pm$ (kHz)} set the sweep window;
 \btn{Apply Window} applies them. When PyNMR is idle the change is immediate; during a run it waits for the
-next event. The window is saved in the session and restored at the next start. Keep the centre on the
+next event. The half-width can go up to 5000~kHz in the deuteron profiles: the R\&S SMA100A's full FM deviation,
+$r_m\times10$~MHz with $r_m=1/2$ for carriers up to 46.875~MHz (datasheet v06.01, p.~14). Its deviation accuracy is
+specified up to half that, 2500~kHz. Other profiles keep 2000~kHz (\code{window\_limits: hw\_max\_khz} in
+\code{pynmr\_config.yaml}). The window is saved in the session and restored at the next start. Keep the centre on the
 deuteron Larmor frequency: \btn{Auto Tune} finds the absorptive phase at the centre frequency.
 
 \subsection{Sweeps as $64\times N$}
@@ -190,8 +288,8 @@ chunks:
 \label{sec:wings}
 The yellow curve on Baseline Subtracted is JLab's \emph{Polynomial Fit to Wings} (3rd order by default),
 which is subtracted to give Fit Subtracted. It is fitted to the outer parts of the sweep only. A box in the
-top-right corner of the Baseline Subtracted plot, \btn{Wing points per side}, sets how many points it uses on
-each side; a dashed red curve on top of the yellow one marks exactly those points.
+title row of the Baseline Subtracted plot, \btn{Wing bins}, sets how many points (bins) it uses on \emph{each} side;
+a dashed red curve on top of the yellow one marks exactly those points.
 \begin{itemize}
 \item The default is what the Analysis tab's fit bounds give (\code{analysis: wings} in \code{pynmr\_config.yaml}):
   148 points per side of 512 for the shared default 0.01/0.30/0.70/0.99, and 122 for the TestSim profiles.
@@ -219,9 +317,10 @@ them) with each tune's DAC setting, the buttons, a result line, and a small plot
 \includegraphics[width=\textwidth]{fig_tune_tab_autotune.png}
 \caption{The Tune tab after a cycle4 \btn{Auto Tune} in the simulator. Bottom left: the tune selector with
 each tune's DAC setting, the \btn{Auto Tune}, \btn{Undo Auto Tune}, \btn{Auto Calibrate Phase}, \btn{Stop} and
-\btn{Imag from Calibration} buttons, and the result line. Bottom right: the Q-curve trace about its point at
-the centre frequency, with the fit (green), the $0^\circ$ absorptive direction (red dashes) and $90^\circ$
-(orange). The simulator's Q-meter is heavily damped, so its trace is nearly a straight line; the Hall~B tank
+\btn{Imag from Calibration} buttons, and the result line; under it, once Auto Tune has a result, the Q-curve trace about its point
+at the centre frequency, in the true $0^\circ$/$90^\circ$ frame Auto Tune found (absorptive across, dispersive up, each
+axis scaled to its data so the bow shows), with the fit (green) and the $0^\circ$ (red) and $90^\circ$ (orange) axes
+dashed. Bottom right: the mean output against the phase DAC for each step of the scan. The simulator's Q-meter is heavily damped, so its trace is nearly a straight line; the Hall~B tank
 traces a visible circle (about $39^\circ$ of arc in the 2026-10-27 data).}
 \label{fig:tune}
 \end{figure}
@@ -263,6 +362,20 @@ cycle4) in one click.
   target falls outside its settings, the main pass's answer is kept and the result line says so.
 \item It leaves the box on the tune the selector shows and restarts the Tune loop.
 \end{enumerate}
+While it scans, each step's sweep is shown on the Diode Signal and Phase Signal plots.
+
+\paragraph{Which absorptive setting is $0^\circ$.} Both $\theta$ and $\theta+180^\circ$ are absorptive. Auto Tune calls
+$0^\circ$ the one whose phase output curves \emph{opposite} to the diode, the JLab convention: a diode smile goes with a
+phase frown at the in-tune Real setting, where a positive polarization gives a downward line (\S\ref{sec:concepts}). The 2026-10-27 hall data follow it: the diode was a smile ($+229$~mV) and the
+$0^\circ$ phase a frown ($-101$~mV), with $180^\circ$ a smile. Both curvatures are measured on the outer half of the
+window, clear of the deuteron line; if either is too small to tell, the absorptive setting nearer the hand Real tune
+is kept.
+\begin{itemize}
+\item In cycle4, if Real was set by hand on the wrong side, Real and $180^\circ$ swap tunes.
+\item With a pair, a local scan can't reach half a turn away: Auto Tune keeps the nearer setting and says in red
+  that Real is on the smile side and should be moved about half a turn by hand.
+\item \code{autotune: zero\_by\_curvature: False} in \code{quadrature.yaml} turns the rule off.
+\end{itemize}
 A Real/Imag pair takes one pass of 13 steps plus the 13-step polish, about 50~s on the box. A step is one DAC
 setting visited automatically (64 sweeps); for the operator it is still one click. In the simulator, a cycle4 set
 with hand tunes 12--32$^\circ$ off took two passes and the polish (75 steps) and landed every tune within
@@ -435,12 +548,15 @@ While Quadrature is ticked, a $2\times3$ grid replaces the three plots under the
 \item In cycle4, $-1\times$ the $180^\circ$ record is drawn in orange over every $0^\circ$ plot, and
   $-1\times$ the $270^\circ$ record over every $90^\circ$ plot, so the opposite settings can be compared at a glance.
   On the Raw row they sit apart by twice the detector's DC offset; that gap \emph{is} the offset.
-\item Baseline Subtracted shows the fitted background (yellow); Fit Subtracted Imag also shows the fitted KK
-  curve, dashed (\S\ref{sec:disp}).
+\item Baseline Subtracted shows the fitted background (yellow), with the points it was fitted to dashed red
+  (\S\ref{sec:wings}).
+\item Fit Subtracted: the solid purple line is the Analysis tab's result curve (JLab's; flat at zero for the
+  default \emph{Integrate Full Range}, a fitted lineshape for the fitting methods). The dashed purple on Imag is the
+  fitted KK curve (\S\ref{sec:disp}).
 \item A raw curve follows its event live as the sweeps come in. Every other curve changes only when a record
   at its own angle finishes, so all of them can be watched as the line changes.
-\item The big polarization number keeps showing the last Real record; the area box notes when the latest
-  record is at another angle.
+\item The big polarization number keeps showing the last Real record. The Signal Area box shows one line per
+  angle, each from that angle's latest record, and changes only when a record at that angle finishes.
 \end{itemize}
 Unticking Quadrature shows JLab's three plots again.
 
@@ -497,7 +613,95 @@ dispersion matching the Kramers--Kronig transform of the absorption to about the
 background was fitted jointly with it.
 
 %=====================================================================================================
+\section{Taking and using a TE}
+\label{sec:te}
+A thermal-equilibrium (TE) measurement calibrates the polarization: at a known temperature $T$ and field $B$ the
+polarization is the Boltzmann value $P_\mathrm{TE}(B,T)$, so the calibration constant is
+$\mathrm{CC}=\langle P_\mathrm{TE}/\mathrm{area}\rangle$, and every later event gets $P=\mathrm{area}\times\mathrm{CC}$.
+The numbers below match the markers in Fig.~\ref{fig:te}.
+\begin{enumerate}
+\item \textbf{Take the TE data} (Run tab). Microwaves off, target at thermal equilibrium at a steady, known
+  temperature; the EPICS temperature channel (\code{epics\_temp}, \code{TGT:PT12:Bath\_Top\_T} by default) must be live,
+  because the TE uses its reading for each event. Use the same window, sweeps, baseline and Analysis-tab settings
+  you will use for polarized data: the CC converts \emph{this} area to polarization. Set the Event Label to
+  \textbf{TE} (the TE tab lists only events labelled TE or None) and run long enough to average the small signal.
+  In quadrature only the $0^\circ$ records reach the history, so the TE uses Real records only.
+\item \textbf{TE tab, Area vs.\ Time:} set \btn{History to Show (min)} to cover the TE, and drag the blue region over
+  it. The line above reports an exponential fit (relaxation time and asymptote) to judge whether equilibrium was
+  reached.
+\item \textbf{Select for TE:} the lower plot shows the blue selection; drag the green region over the flat,
+  equilibrium part. The fitted slope is shown above the table and should be consistent with zero.
+\item \textbf{The points} appear in the table with their area and temperature. Double-click a row to drop an
+  outlier. Points without a temperature reading are refused.
+\item \textbf{Species and field:} choose \btn{Deuteron} (the box starts on Proton) and enter the field in T.
+\item \btn{Calculate TE from Points}: TE Results shows the average TE polarization and CC, with spreads.
+\item \btn{Save Results \& Use CC}: the report is written to \code{te\_dir} (default \code{te/}, created if needed) and the
+  CC is put in use. The Run tab's Calibration Constant box shows it, and it is saved in the session.
+\end{enumerate}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{qs_te_marked.png}
+\caption{The TE tab (simulator, so no temperatures and no points selected). \mk{2} Area vs.\ Time with the blue
+selection. \mk{3} Select for TE with the green selection. \mk{4} the selected points. \mk{5} Species and B Field.
+\mk{6} \btn{Calculate TE from Points}. \mk{7} \btn{Save Results \& Use CC} and the TE Results.}
+\label{fig:te}
+\end{figure}
+
+%=====================================================================================================
+\section{The Analysis tab}
+\label{sec:analysis}
+The Analysis tab sets how every event is analysed, in three stages: subtract a baseline, subtract a fitted
+background, and turn what is left into a result (the area). Changing anything re-analyses the last event on this
+tab at once, so the effect can be judged, and applies to every later event; records already written keep what
+they had. Numbers match Fig.~\ref{fig:analysis}.
+\begin{enumerate}
+\item \textbf{Baseline Options:} \emph{Baseline Selected from Baseline Tab} (normal), \emph{Polynomial Fit to Wings}
+  (fit the raw sweep's wings instead of using a baseline), or \emph{No Baseline Subtraction}.
+\item \textbf{Subtraction Options:} \emph{Polynomial Fit to Wings} (normal) or \emph{No Fit Subtraction}.
+\item \textbf{Polynomial order} (2nd to 8th; 3rd by default) and \textbf{Fit bounds (0 to 1)}: the two wing regions as
+  fractions of the sweep. The Run tab's \btn{Wing bins} box sets these bounds (\S\ref{sec:wings}).
+\item \textbf{Result Options:} \emph{Integrate Full Range} (default: the area is the sum of Fit Subtracted),
+  \emph{Integrate within Range}, \emph{Peak Height}, \emph{Fit Gaussian and Integrate}, \emph{Fit 2 Gaussians and
+  Integrate}, \emph{Deuteron Peak Fit} (JLab's lineshape fit; slower, up to about 25~s per event), or the two
+  UNH options below.
+\item[] \textbf{Optimized McClellan Fits (Equilibrium)} and \textbf{(ssRF)} run the online fitter's own fits
+  (the \code{FitEngine} of LabView-NMR-Fitter, imported from the sibling folder) on each event, fed exactly as the
+  data streamer feeds the fitter.
+  \begin{itemize}
+  \item \emph{Equilibrium} is the fast fit: r and the phase float, a cubic is profiled out, and every lineshape
+    constant, \emph{including the amplitude scale}, is held fixed; $P=(r^2-1)/(r^2+r+1)$ (ratio method, no CC needed).
+  \item \textbf{Press Update Constants} once about ten equilibrium lines are in, on a strong, steady line: it runs the
+    full open fit on their average and refreshes all constants. Until then the status line is red and P is not
+    trustworthy (in the simulator the preset amplitude was 1.6 times too small and P came out 1.7 times too high).
+    Constants taken on weak lines (a few \%) are poor: re-run it once the signal is strong. The constants are saved
+    in \code{<event\_dir>/mcclellan/} and reloaded at the next start for the same material.
+  \item \emph{ssRF} is the fitter's hole-burnt fit against the Update-Constants reference; run Update Constants on the
+    equilibrium line the manipulation starts from. Not yet tested inside PyNMR (the simulator burns no holes).
+  \item Material: ND3, d-butanol or d-propanediol (\code{unh/mcclellan.yaml}). In quadrature only $0^\circ$ records are
+    fitted. The fitter's fast fit misreads small \emph{negative} P (around $-5$ to $-15\,\%$) as positive; this is a
+    property of the fitter, reported to its maintainers.
+  \end{itemize}
+\item \textbf{Plots:} Baseline Subtraction (raw, baseline, difference); Fit Subtraction, with the wing regions shaded;
+  Results, with the result curve (the purple line on the Run tab).
+\end{enumerate}
+\begin{itemize}
+\item The CC from a TE is valid only for the analysis settings used during that TE. Change them and take a new TE.
+\item In quadrature, $90^\circ$ and $270^\circ$ records use the joint KK subtraction (\S\ref{sec:disp}) instead of
+  step~2's choice. Re-analysis on this tab uses the tab's own choice for every record, for display.
+\end{itemize}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{qs_analysis_marked.png}
+\caption{The Analysis tab. \mk{1} baseline method. \mk{2} subtraction method. \mk{3} polynomial order and fit bounds.
+\mk{4} result method. \mk{5} the shaded wing regions on the Fit Subtraction plot.}
+\label{fig:analysis}
+\end{figure}
+
+%=====================================================================================================
 \section{Troubleshooting}
+\label{sec:trouble}
 
 \begin{table}[ht]
 \centering\small
@@ -588,12 +792,15 @@ Code: \code{unh/quadrature/autotune.py} (fits) and \code{AutoTuneThread} in \cod
   \]
   with the phase $\phi$ free at every DAC value ($\phi=0$ at the Real tune), $g$ and $o$ low-order polynomials in
   $v$, a linear drift $d$, and $W_j$ the complex response in 32 frequency bins.
-\item \textbf{Trace fit.} $W(f)$ is fitted with a circle written to stay finite as it straightens:
+\item \textbf{Trace fit.} The points $W_j=x_j+iy_j$ are fitted geometrically with a circle written as a conic,
   \[
-  W(f)=P_0+i\,e^{i\theta_0}\,s\,\frac{u}{1-iku},\qquad u=f-f_0,
+  A\,(x^2+y^2)+B\,x+C\,y+D=0,\qquad B^2+C^2-4AD=1\ \text{(Pratt)},
   \]
-  whose normal at $f$ is at $\theta_0+2\arctan\!\big(k(f-f_0)\big)$, with $k=1/\gamma$ ($k=0$ is a line). The
-  normal at the centre frequency, $\theta_\mathrm{ref}$, and its error come from the fit.
+  which stays finite as the circle straightens into a line ($A\to0$). The normal at the point for the centre
+  frequency is the gradient, $\theta_\mathrm{ref}=\operatorname{atan2}(2Ay+C,\;2Ax+B)$; its error comes from a
+  jackknife over the bins, folded mod $180^\circ$. In the simulator it is within $0.45^\circ$ of the truth, and
+  the points scatter off the curve by about the noise. (An earlier fit of the circle's parametrization in $f$
+  followed the trace poorly.)
 \item \textbf{Targets.} $0^\circ$ is whichever of $\theta_\mathrm{ref}$ and $\theta_\mathrm{ref}+180^\circ$ is nearer the
   hand Real tune; $90^\circ$ is whichever of $\theta_\mathrm{ref}\pm90^\circ$ is nearer the hand Imag tune;
   $180^\circ$ and $270^\circ$ are opposite those.

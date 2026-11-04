@@ -50,6 +50,7 @@ DEFAULTS = {
         'sweeps_per_step': 64,    # rounded up to a multiple of tune_per_chunk
         'max_passes': 3,      # another pass, centred on the new tunes, while a target lies outside its steps
         'polish': True,       # then one tighter pass around the new tunes, which gives the final answer
+        'zero_by_curvature': True,  # 0 deg = the absorptive direction whose phase curves opposite the diode
         'polish_offsets': [-0.01, -0.005, 0.0, 0.005, 0.01],
         'settle_ms': 1.0,     # wait after each DAC write, ms
         'bins': 32,           # frequency bins for the fits

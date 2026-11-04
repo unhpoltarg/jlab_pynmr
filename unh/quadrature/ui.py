@@ -253,7 +253,14 @@ class QuadUI:
         self.cal_label = QLabel('No phase calibration yet.')
         self.cal_label.setWordWrap(True)
         controls.addWidget(self.cal_label)
-        controls.addStretch(1)
+        self.trace_plot = pg.PlotWidget(title='Auto Tune: Q-curve trace in the true 0°/90° frame '
+                                              '(axes scaled separately)')
+        self.trace_plot.showGrid(True, True)
+        self.trace_plot.setLabel('bottom', 'Absorptive, 0° (mV)')
+        self.trace_plot.setLabel('left', 'Dispersive, 90° (mV)')
+        self.trace_plot.hide()
+        controls.addWidget(self.trace_plot, 100)     # all the open space when shown
+        controls.addStretch(1)                       # keeps the controls at the top while it is hidden
         # live view of the calibration: mean phase and diode output vs phase DAC (%)
         self.cal_plot = pg.PlotWidget(title='Calibration: mean output vs Phase DAC (%)')
         self.cal_plot.showGrid(True, True)
@@ -328,10 +335,10 @@ class QuadUI:
         self.refresh()
 
     def _scan_view(self, title):
-        """Back to the mean-output-vs-DAC view, cleared."""
-        for item in self.trace_items:
-            self.cal_plot.removeItem(item)
+        """Clear the mean-output-vs-DAC plot for a new scan, and hide the last Auto Tune trace."""
+        self.trace_plot.clear()
         self.trace_items = []
+        self.trace_plot.hide()
         self.cal_plot.setAspectLocked(False)
         self.cal_plot.setTitle(title)
         self.cal_plot.setLabel('bottom', 'Phase DAC (%)')
@@ -361,6 +368,12 @@ class QuadUI:
         else:
             timing = f'{t:.0f} s elapsed.'
         self.cal_label.setText(f'{what}: step {step} of {of} (phase DAC {vout * 100:.2f} %), {timing}')
+        tune = self.ctrl.mw.tune_tab                     # the step's sweep on the Diode and Phase Signal plots
+        freqs = np.asarray(self.ctrl.mw.config.freq_list, dtype=float)
+        for key, plot in (('diode', tune.diode_plot), ('phase', tune.phase_plot)):
+            y = data.get(key)
+            if y is not None and len(y) == len(freqs):
+                plot.setData(freqs, np.asarray(y, dtype=float))
         if data.get('mean_phase') is not None:
             self.cal_points.append((vout * 100, data['mean_phase'], data.get('mean_diode')))
             x = [p[0] for p in self.cal_points]
@@ -376,30 +389,27 @@ class QuadUI:
         if 'W_re_V' not in trace:
             self.refresh()
             return
-        from .autotune import trace_curve
         W = np.asarray(trace['W_re_V']) + 1j * np.asarray(trace['W_im_V'])
-        c = trace_curve(trace, [trace['ref_MHz']])[0] if trace.get('success') else W.mean()
+        c = complex(*trace['ref_point_V']) if trace.get('success') else W.mean()
         d = (W - c) * 1e3                        # relative to the trace at the centre frequency, mV
-        self.cal_phase.setVisible(False)
-        self.cal_diode.setVisible(False)
-        if self.cal_plot.plotItem.legend is not None:
-            self.cal_plot.plotItem.legend.setVisible(False)
-        self.cal_plot.setTitle('Auto Tune: Q-curve trace about its centre-frequency point, Real-tune frame')
-        self.cal_plot.setLabel('bottom', 'Re W (mV)')
-        self.cal_plot.setLabel('left', 'Im W (mV)')
-        items = [self.cal_plot.plot(d.real, d.imag, pen=None, symbol='o', symbolSize=5, symbolBrush=(0, 0, 204))]
+        tp = self.trace_plot
+        tp.clear()
+        # rotate into the frame Auto Tune found: x along the absorptive (0 deg) direction, y along 90 deg. Each axis
+        # is scaled to its own data, so the trace's bow shows; the two directions are the axes themselves.
+        rot = np.exp(-1j * np.radians(trace['theta_ref_deg'])) if trace.get('success') else 1.0
+        dr = d * rot
+        items = [tp.plot(dr.real, dr.imag, pen=None, symbol='o', symbolSize=5, symbolBrush=(0, 0, 204))]
         if trace.get('success'):
-            fb = np.asarray(trace['bin_freqs_MHz'])
-            w = (trace_curve(trace, np.linspace(fb.min(), fb.max(), 200)) - c) * 1e3
-            items.append(self.cal_plot.plot(w.real, w.imag, pen=pg.mkPen((0, 160, 0), width=1.5)))
-            n = np.exp(1j * np.radians(trace['theta_ref_deg']))
-            r = 0.5 * max(np.ptp(d.real), np.ptp(d.imag), 1e-6)
-            for v, colour in ((n, (250, 0, 0)), (1j * n, (255, 140, 0))):     # 0 deg (absorptive) and 90 deg
-                items.append(self.cal_plot.plot([-r * v.real, r * v.real], [-r * v.imag, r * v.imag],
-                                                pen=pg.mkPen(colour, width=1.5, style=pg.QtCore.Qt.DashLine)))
+            cv = np.asarray(trace['curve_V'], dtype=float)
+            w = ((cv[:, 0] + 1j * cv[:, 1]) - c) * 1e3 * rot
+            items.append(tp.plot(w.real, w.imag, pen=pg.mkPen((0, 160, 0), width=1.5)))
+            for angle, colour in ((0, (250, 0, 0)), (90, (255, 140, 0))):   # 0 deg (absorptive) and 90 deg axes
+                line = pg.InfiniteLine(pos=0, angle=angle, pen=pg.mkPen(colour, width=1.5, style=pg.QtCore.Qt.DashLine))
+                tp.addItem(line)
+                items.append(line)
         self.trace_items = items
-        self.cal_plot.setAspectLocked(True)
-        self.cal_plot.enableAutoRange()
+        tp.show()
+        tp.enableAutoRange()
         self.refresh()
 
     # -- Baseline tab ------------------------------------------------------------

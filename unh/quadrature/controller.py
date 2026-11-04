@@ -211,6 +211,7 @@ class QuadController:
             self.in_run = True
             self._wrote_this_run = False
             self._absorption = {}            # KK reference: only this run's absorption
+            self.areas = {}                  # Run-tab Signal Area per angle: this run's records only
             self.sched.start_run()
             if self.ui:
                 self.ui.refresh()
@@ -418,16 +419,25 @@ class QuadController:
         if self.ui:
             self.ui.plots.show_event(event)
             self.ui.base_refresh()
+        tab = getattr(self.mw, 'run_tab', None)
+        tagged = getattr(event, 'quad_ref_deg', None) is not None
+        if tagged:
+            self.areas = getattr(self, 'areas', {})
+            self.areas[records.angle_of(event)] = getattr(event, 'area', float('nan'))
         if records.is_real(event):
             self.last_real = (event.pol, event.area)
-            return
-        tab = getattr(self.mw, 'run_tab', None)
-        if tab is None:
-            return
-        angle = records.angle_of(event)
-        if self.last_real is not None:
+        elif tab is not None and self.last_real is not None:
             tab.pol_value.setText('{:.2%}'.format(self.last_real[0]))
-        tab.area_value.setText('{:.6f}\n({} deg record)'.format(event.area, angle))
+        if tab is not None and tagged and self.sched.active:
+            tab.area_value.setText(self.area_lines())
+
+    def area_lines(self):
+        """Run tab Signal Area in quadrature: one line per angle of the sequence, each from its own latest record."""
+        lines = []
+        for a in sorted(set(self.sched.sequence) | {0}):
+            v = getattr(self, 'areas', {}).get(a)
+            lines.append(f'{a}°: ' + ('waiting' if v is None else f'{v:.6f}'))
+        return '<div style="font-size:13pt">' + '<br>'.join(lines) + '</div>'
 
     # -- dispersive records -------------------------------------------------------
     def _keep_absorption(self, event):
@@ -691,9 +701,12 @@ def autotune_summary(rec):
         polished = f" (polish not used: {pol.get('message')})"
     else:
         polished = ''
+    zero = f" 0 deg: {res['zero_rule']}." if res.get('zero_rule') else ''
+    warn = (f'<br><span style="color:#d00000">{res["zero_warning"]}.</span>' if res.get('zero_warning') else '')
     return (f"Auto Tune done ({res['passes']} pass{'es' if res['passes'] > 1 else ''}{polished}; {steps} steps): "
             + '; '.join(parts) + f". Absorptive direction at {res['ref_MHz']:.4f} MHz to "
-            f"+-{res['theta_ref_err_deg']:.2f} deg; Q-curve arc {res['arc_deg']:.1f} deg across the window.")
+            f"+-{res['theta_ref_err_deg']:.2f} deg; Q-curve arc {res['arc_deg']:.1f} deg across the window.{zero}"
+            + warn)
 
 
 def attach_quadrature(main_window):

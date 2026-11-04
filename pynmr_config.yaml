@@ -183,6 +183,8 @@ profiles:
             default_channel: Deuteron5T
             daq_type: Test
             test_source: sim            # 'sim' = nmr_sim; anything else = replay of test_signal
+            window_limits:              # Half-width up to the R&S SMA100A's full FM deviation: rm x 10 MHz, rm = 1/2
+                hw_max_khz: 5000        # for carriers <= 46.875 MHz (datasheet v06.01 p.14; in-spec accuracy to 2500)
             event_dir: data
             session_file: sim_session   # kept apart from the replay Test session/history
             history_file: sim_history
@@ -235,6 +237,8 @@ profiles:
             daq_type: Test
             test_source: sim
             event_dir: data-quad
+            window_limits:              # Half-width up to the R&S SMA100A's full FM deviation: rm x 10 MHz, rm = 1/2
+                hw_max_khz: 5000        # for carriers <= 46.875 MHz (datasheet v06.01 p.14; in-spec accuracy to 2500)
             session_file: simquad_session
             history_file: simquad_history
             analysis:
@@ -254,6 +258,8 @@ profiles:
             nmr_sim:
                 seed: 20261027
                 speed: 10               # slower than TestSim, so a calibration doesn't run through the timeline
+                labels:                 # the Run tab's Event Label drives the target (unh/nmr_sim/labels.py)
+                    enable: True        # None/Baseline: line out of window; TE: 5 T 1 K; Polarize: spin-up; Junk
                 field_T: 5.00306
                 te_temp_K: 1.0
                 material: deuterated ammonia (Dec 2024)
@@ -285,6 +291,7 @@ profiles:
                         - [0.875, 473.6]
                         - [0.9375, 483.1]
                     ref_phase_offset_deg: -65.7     # so the Real tune 0.238 (3.8 V) is absorptive
+                    diode_bg_V: 1.92                # positive diode output (a smile), as the UNH box: hall 2026-10-27
                     phase_dac_gain_slope: -0.02     # 2 % detector gain change over the DAC range (a guess)
                     phase_dac_offset_V: 0.01        # detector offset change over the DAC range (a guess)
                 timeline:
@@ -312,6 +319,10 @@ profiles:
             default_channel: Deuteron5T
             daq_type: FPGA
             event_dir: data-d
+            # >>> UNH-HOOK freq-window: Half-width up to the R&S SMA100A's full FM deviation
+            window_limits:              # Half-width up to the R&S SMA100A's full FM deviation: rm x 10 MHz, rm = 1/2
+                hw_max_khz: 5000        # for carriers <= 46.875 MHz (datasheet v06.01 p.14; in-spec accuracy to 2500)
+            # <<< UNH-HOOK freq-window
             session_file: deuteron_session
             history_file: deuteron_history
             #fpga_settings:

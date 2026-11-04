@@ -28,6 +28,7 @@ DEFAULTS = {
     'port': 8777,
     'signal': 'fitsub',          # event attribute sent as the fitter's baseline_sub: fitsub or basesub
     'amplitude_scale': 1.0,      # multiplies raw and signal before sending
+    'line_sign': 1.0,            # +1 or -1: the fitter's model wants positive P as an upward line (see the yaml)
     'connect_timeout': 1.0,      # s
     'reply_timeout': 5.0,        # s
     'species': ['deuteron'],     # stream only channels of these species; empty list streams all
@@ -69,7 +70,15 @@ def load_stream_config(profile=None, path=CONFIG_FILE):
     if cfg['signal'] not in SIGNALS:
         log.error(f"Data streamer disabled: signal must be one of {SIGNALS}, got {cfg['signal']!r}.")
         cfg['enable'] = False
+    if cfg['line_sign'] not in (1, -1, 1.0, -1.0):
+        log.error(f"Data streamer disabled: line_sign must be +1 or -1, got {cfg['line_sign']!r}.")
+        cfg['enable'] = False
     return cfg
+
+
+def line_scale(cfg):
+    """Factor applied to the sweeps sent to the fitter: amplitude_scale x line_sign."""
+    return float(cfg.get('amplitude_scale', 1.0)) * float(cfg.get('line_sign', 1.0))
 
 
 def labview_timestamp(dt):
@@ -130,7 +139,7 @@ def build_sweep_message(event, cfg):
     """
     freqs = np.asarray(event.scan.freq_list, dtype=float)
     centfreq, span, uniform = axis_params(freqs)
-    scale = float(cfg.get('amplitude_scale', 1.0))
+    scale = line_scale(cfg)
     channel = event.config.channel
     return {
         'type': 'sweep',
@@ -145,7 +154,8 @@ def build_sweep_message(event, cfg):
         'freqs_mhz': freqs.tolist(),
         'basesub': _arr(event.basesub, scale),
         'fitsub': _arr(event.fitsub, scale),
-        'amplitude_scale': scale,
+        'amplitude_scale': float(cfg.get('amplitude_scale', 1.0)),
+        'line_sign': float(cfg.get('line_sign', 1.0)),
         'channel': channel.get('name'),
         'cent_freq_mhz': _num(channel.get('cent_freq')),
         'mod_freq_khz': _num(channel.get('mod_freq')),

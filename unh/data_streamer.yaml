@@ -5,6 +5,9 @@ host: 127.0.0.1
 port: 8777              # fitter's sweep socket (online_fitter/protocol.py DEFAULT_PORT)
 signal: fitsub          # sent as the fitter's baseline_sub: fitsub (baseline- and fit-subtracted) or basesub (baseline only)
 amplitude_scale: 1.0    # multiplies raw and signal before sending, to match the fitter's expected units
+line_sign: -1.0         # The fitter's McClellan model wants positive P as an UPWARD line. At the true 0 deg
+                        # (diode smile, phase frown; UNH convention 2026-11-04) positive P is a DIP, so the line is
+                        # flipped before sending. +1 for data taken at the old 180 deg setting (past cooldowns).
 connect_timeout: 1.0    # s
 reply_timeout: 5.0      # s
 species:                # stream only channels of these species (the fitter is deuteron-only); empty list streams all
@@ -12,5 +15,7 @@ species:                # stream only channels of these species (the fitter is d
 
 # Per-profile overrides, keyed by the -p profile name. Any key above can be overridden.
 profiles:
+    TestSim:
+        line_sign: 1.0  # nmr_sim's TestSim profile: positive P is an upward line at its Real tune
 #   Deuteron:
 #       enable: True

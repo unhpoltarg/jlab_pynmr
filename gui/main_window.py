@@ -415,6 +415,13 @@ class MainWindow(QMainWindow):
     def label_changed(self, new_label):
         """Update event label"""
         self.label = new_label
+        # >>> UNH-HOOK nmr-sim: in label-driven simulation the Event Label sets what the simulated target does
+        try:
+            from unh.nmr_sim.labels import set_label
+            set_label(new_label)
+        except ImportError:
+            pass
+        # <<< UNH-HOOK nmr-sim
 
     def channel_change(self, i):
         """Channel setting changed. Make new config."""

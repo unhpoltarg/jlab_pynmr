@@ -13,6 +13,8 @@ JLab does not need it, so it is kept out of the shared code and can be deleted c
 | `quad-phase` | Both NMR quadratures: Real/Imag Phase Tunes alternated between events, plus a phase-DAC calibration (below) | `quadrature/`, `tests/test_quadrature.py` | `gui/main_window.py`, `gui/tabs/run_tab.py`, `gui/tabs/base_tab.py`, `pynmr_config.yaml`, `.gitignore` |
 | `sweep-blocks` | Sweep counts as a fixed 64 × N: Run-tab Sweeps per Event (N default 10), Tune-tab running average (N default 1); 64-sweep tune chunks | `sweep_blocks.py`, `tests/test_sweep_blocks.py` | `gui/tabs/run_tab.py`, `gui/tabs/tune_tab.py`, `pynmr_config.yaml` |
 | `wing-points` | Run tab: "Wing points per side: N" for the wing fit (default from the Analysis-tab bounds), fitted points marked in dashed red | `wing_points.py`, `tests/test_wing_points.py` | `gui/main_window.py` |
+| `mcclellan-fit` | Analysis tab: "Optimized McClellan Fits (Equilibrium)" and "(ssRF)" result options, run by the online fitter's own `FitEngine` (LabView-NMR-Fitter) | `mcclellan.py`, `mcclellan.yaml`, `tests/test_mcclellan.py` | `gui/tabs/analysis_tab.py` |
+| `base-drag` | Baseline tab fixes: selecting rows by dragging (or shift-click, Ctrl-A) updates the selection, not only a click; pressing Set Baseline twice no longer turns the baseline's dates into text (which made every analysis fail) | `tests/test_base_drag.py` | `gui/tabs/base_tab.py` |
 | `exit-guard` | Clearer button labels on the exit-while-running dialog | none | `gui/main_window.py` |
 | `te-fix` | TE calibration fixes: the report goes to `te_dir` (created if needed), the Run-tab CC box shows the CC in use, and a TE without temperature readings is refused | `tests/test_te_fix.py` | `core/calculations.py`, `gui/tabs/te_tab.py`, `gui/main_window.py` |
 | `fork-tools` | Repository tooling for the fork (local Claude Code notes) | none | `.gitignore` |
@@ -162,7 +164,9 @@ Calibration files go to `<event_dir>/quad_cal/`.
   Q-curve W(f) and moves the tunes to the true angles. Then it starts the Tune loop again.
 - 0° is the absorptive direction at the centre frequency. That is the normal to the Q-curve's trace in the
   complex plane there; the absorptive phase turns across the sweep as θ(f) = θ0 + 2 atan((f − f0)/γ).
-- The data can't choose between 0° and 180°, or between +90° and −90°; the hand tunes decide.
+- 0° is the absorptive setting whose phase curves opposite to the diode (diode smile, phase frown, as JLab tunes;
+  the 10/27 hall data agree). If the curvature can't tell, the hand Real tune decides; ±90° is always the one
+  nearer the hand Imag tune. Each scan step's sweep is shown on the Tune tab's Diode and Phase plots.
 - It works on the background Q-curve alone. A deuteron line centred in the window doesn't tilt the
   result to first order, and `autotune: mask_khz` can leave bins out.
 - A pass is repeated, centred on the new tunes, while a target lies outside the steps around its tune.
@@ -191,10 +195,25 @@ Quadrature on, select all its rows at once on the Baseline tab, and press Set Ba
 - The Run tab shows a "Baselines:" line per angle (red if one is missing or from another tune).
 - Records carry `quad_base_ref_deg`, `quad_base_vout` and `quad_base_match`.
 
-**Wing fit size** (feature `wing-points`, `wing_points.py`): a "Wing points per side: N" box in the corner of
-the Run tab's Baseline Subtracted plot (and the quadrature grid's Real one) sets the Analysis tab's wing-fit bounds
+**Wing fit size** (feature `wing-points`, `wing_points.py`): a "Wing bins" box (points per side) in the title row
+of the Run tab's Baseline Subtracted plot (and the quadrature grid's Real one) sets the Analysis tab's wing-fit bounds
 symmetrically, keeping JLab's outer 1 % skip. The default is what `analysis: wings` gives (148 of 512 points).
 A dashed red curve over the yellow fit marks the points used.
+
+**Sign convention (2026-11-04):** the true 0° is diode smile + phase frown, where positive P is a downward line;
+past UNH cooldowns ran at the 180° setting. The streamer flips lines for the fitter (`line_sign: -1` in
+`data_streamer.yaml`; TestSim keeps +1), and the McClellan options use the same setting. Take a new TE at the true
+0°: an old CC has the wrong sign there.
+
+**Label-driven simulation** (`nmr_sim/labels.py`, `nmr_sim: labels: enable: True`, on in TestSimQuad): the Run
+tab's Event Label sets what the simulated target does. None/Baseline: line moved out of the window, P relaxing to
+TE; TE: 5 T, 1 K; Polarize: spin-up from the current P; Junk: very noisy and bouncing. P carries over between labels.
+
+**Optimized McClellan Fits** (feature `mcclellan-fit`, `mcclellan.py`, `mcclellan.yaml`): two Analysis-tab result
+options, Equilibrium and ssRF, that run the online fitter's own `FitEngine` (imported from `../LabView-NMR-Fitter`).
+Each event goes in exactly as the streamer sends it. Equilibrium is the fast fit (r and phase free, P from r);
+press Update Constants on a strong equilibrium line first. Constants are saved per material in
+`<event_dir>/mcclellan/`. Only 0° quadrature records are fitted.
 
 **Dispersive records (90/270°)** get a cubic background fitted jointly with the Kramers–Kronig transform of the
 latest absorption (`quadrature/dispersion.py`, settings under `dispersion:`). JLab's wing fit eats the

@@ -79,6 +79,10 @@ class BaseTab(QWidget):
         self.event_table.resizeColumnsToContents()
         self.event_table.setModel(self.event_model)
         self.event_table.clicked.connect(self.select_event)
+        # >>> UNH-HOOK base-drag: a drag, shift-click or Ctrl-A selection also sets the baseline (clicked alone misses drags)
+        self.event_table.selectionModel().selectionChanged.connect(
+            lambda *_: self.event_table.selectionModel().selectedRows() and self.select_event())
+        # <<< UNH-HOOK base-drag
         self.base_box.layout().addWidget(self.event_table)    
         self.base_but = QPushButton('Set Baseline')
         self.base_box.layout().addWidget(self.base_but)
@@ -246,6 +250,7 @@ class BaseTab(QWidget):
         
     def print_to_recent(self, base_dict):
         '''Prints selected baseline information to recent baselines file for reuse'''
+        base_dict = dict(base_dict)   # UNH-HOOK base-drag: a copy, so a second Set Baseline still has real dates
         
         recentfile = open(self.basefile_name, "a")
         for key, entry in base_dict.items():   

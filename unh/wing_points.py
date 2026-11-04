@@ -114,8 +114,7 @@ class WingPoints:
         h.setSpacing(3)
         h.addWidget(QLabel('Wing bins:'))
         spin = QSpinBox()
-        spin.setFixedWidth(52)
-        spin.setFixedHeight(20)
+        spin.setMinimumWidth(spin.fontMetrics().horizontalAdvance('8888') + 36)   # room for 3-4 digits + arrows
         spin.setRange(2, max_points(self.sub.wings, self.n_points))
         spin.setValue(self.n)
         spin.setToolTip('Points (bins) used on EACH side by the wing fit (the dashed red part of the yellow curve).\n'
