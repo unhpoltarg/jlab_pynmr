@@ -1,6 +1,6 @@
 """Sweep counts as a fixed 64 times a whole number the operator sets (feature ``sweep-blocks``).
 
-- Run tab, Sweeps per Event: 64 x N, N default 10 (640 sweeps, JLab's default).
+- Run tab, Sweeps per Event: 64 x N, N default 1 (64 sweeps; JLab's default was 640).
 - Tune tab, Sweeps for Running Average: 64 x N, N default 1 (one 64-sweep tune chunk; more makes the plot lag
   the knobs by about 1.8 s per chunk).
 
@@ -13,7 +13,7 @@ import logging
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSpinBox, QWidget
 
 BLOCK = 64            # sweeps per block, fixed (the box's chunk size)
-DEFAULT_BLOCKS = 10   # 640 sweeps, JLab's default
+DEFAULT_BLOCKS = 1    # 64 sweeps (JLab's default was 640)
 MAX_SWEEPS = 65535    # the FPGA register is 16 bits
 
 log = logging.getLogger('PyNMR.unh.sweep_blocks')

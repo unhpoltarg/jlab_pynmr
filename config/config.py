@@ -56,7 +56,10 @@ class Config:
         self.phase_vout = 0
 
         self.controls = {}  # NMR settings requiring control on run tab     
-        self.controls['sweeps'] = ConfigItem(640, 'Sweeps per Event', QIntValidator(10, 65535))  # FPGA register is 16 bits
+        # >>> UNH-HOOK sweep-blocks: Sweeps per Event starts at 64 x 1 (Ells, 2026-11-10)
+        # JLab: self.controls['sweeps'] = ConfigItem(640, 'Sweeps per Event', QIntValidator(10, 65535))  # FPGA register is 16 bits
+        self.controls['sweeps'] = ConfigItem(64, 'Sweeps per Event', QIntValidator(10, 65535))  # FPGA register is 16 bits
+        # <<< UNH-HOOK sweep-blocks
         self.controls['cc'] = ConfigItem(-.08, 'Calibration Constant', QDoubleValidator(-1000, 1000, 7))
         
         # Make list of frequencies and list of bytes to send to R&S

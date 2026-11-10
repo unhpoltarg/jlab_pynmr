@@ -13,6 +13,23 @@ Conventions:
 
 ---
 
+## 2026-11-10
+
+### Tune runs continuously again; Run tab starts at 64 sweeps (`sweep-blocks`)
+
+**What**
+- `pynmr_config.yaml`: `fpga_settings: timeout_tune` 1 -> 5 s (JLab's value kept in the hook block).
+- `config/config.py`: Sweeps per Event starts at 64 (64 x 1) instead of JLab's 640. `unh/sweep_blocks.py` falls
+  back to 64 x 1 as well, when a count isn't whole chunks.
+- `unh/tests/test_sweep_blocks.py`, `unh/README.md` and the technote (Sec. "Sweeps as 64 x N") updated to match.
+
+**Why**
+- On the box, the Tune tab took one try and stopped, and Run had to be clicked again, with or without
+  Quadrature. Since sweep-blocks (2026-11-04), a tune chunk is 64 sweeps, about 1.8 s. That's longer than the
+  1 s tune timeout, so the read timed out and the tune loop ended. Auto Tune and Auto Calibrate Phase use the
+  same timeout and chunk size. The simulator never times out, so tests didn't catch it.
+- Ells: the Run tab should start at 64 x 1.
+
 ## 2026-11-04
 
 ### Quadrature controls on for the Deuteron profile (`quad-phase`)

@@ -45,8 +45,8 @@ assert tab.parent.config.controls['sweeps'].value == 640       # applied only by
 tab.lock_button.setChecked(False)
 assert not sb.spin.isEnabled()
 assert sb.spin.maximum() == 1023                       # 64 x 1023 = 65472 fits the 16-bit register
-tab, sb = make(100)                                    # not whole chunks: back to the default 64 x 10
-assert sb.spin.value() == 10 and tab.parent.config.controls['sweeps'].value == 640
+tab, sb = make(100)                                    # not whole chunks: back to the default 64 x 1
+assert sb.spin.value() == 1 and tab.parent.config.controls['sweeps'].value == 64
 # Tune tab: running average 64 x N, default N = 1, JLab's box kept in step (its textChanged sets to_avg)
 from PySide6.QtWidgets import QGroupBox, QHBoxLayout
 from unh.sweep_blocks import attach_tune_blocks

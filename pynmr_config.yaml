@@ -33,7 +33,10 @@ settings:
         dwell: 10               # Settle time in usec between frequency switch and ADC read (int) (was 10)
         per_point: 2            # Samples taken and averaged at each frequency point of a sweep (int)
         timeout_run: 10         # TCP timeout for running sweeps
-        timeout_tune: 1         # TCP timeout for tune
+        # >>> UNH-HOOK sweep-blocks: a 64-sweep tune chunk takes about 1.8 s on the box, longer than JLab's 1 s
+        # JLab: timeout_tune: 1         # TCP timeout for tune
+        timeout_tune: 5         # TCP timeout for tune
+        # <<< UNH-HOOK sweep-blocks
         timeout_check: 1        # TCP timeout for check
         timeout_udp: 1          # Timeout for udp commands
         close_wait: 0.5         # UNH-HOOK daq-link: max s to wait for the box to close its side of each TCP connection
