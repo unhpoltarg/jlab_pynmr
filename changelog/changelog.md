@@ -15,6 +15,31 @@ Conventions:
 
 ## 2026-11-10
 
+### Auto Tune maps the whole phase range first and picks the settings with the most equal gains (`quad-phase`)
+
+**What**
+- `unh/quadrature/autotune.py`: new map stage (`map_plan`, `analyse_map`, `candidates_for`, `choose_combination`,
+  `cluster_plan`, `analyse_snap`). The trace fit is shared with the old path (`_trace_of`).
+- `unh/quadrature/calibration.py` (`AutoTuneThread`): with `autotune: map: True` (the new default) it maps 16 settings
+  over the DAC range, refines every candidate setting for each angle, keeps the combination with the most equal
+  gains (within `gain_tie` 0.3 %, the larger signal), then polishes. `map: False` keeps the old hand-tune method.
+- `unh/quadrature/controller.py`: no hand tunes needed with the map (only Real, as the phase reference); the 90 deg
+  side is kept from the last Auto Tune and saved in the session (`quad_side90`); the result line lists angles
+  reached at two settings and which was kept.
+- Settings: `map`, `map_steps`, `map_ref_every`, `map_gain_order`, `clip_margin`, `gain_tie`, `snap_max_deg`
+  (`settings.py`, `quadrature.yaml`). Technote and `unh/README.md` describe the new method.
+- Tests: three new in `unh/tests/test_quadrature.py` (simulator with a 20 % gain slope: all four tunes within 0.5 deg
+  from rough Real/Imag hand tunes, the most-equal-gain 180 deg setting kept, the 90 deg side kept on a second run;
+  the candidate and choice rules; `quad_side90` in the session). The two old Auto Tune tests are pinned to
+  `map: False`. 202 tests pass. Real GUI on TestSimQuad: a pair in 51 steps, Real reached twice (23.80 % gain 1.000,
+  71.67 % gain 0.990), 23.80 % kept.
+
+**Why**
+- Ells saw 0 deg at about 2.185 V and Auto Tune's 180 deg at -2.09 V, with another 180 deg setting at -2.119 V. The
+  shifter covers more than a turn, so some angles can be reached two ways, and the local scan only ever found the
+  one nearest the hand tune. Ells: map the full range roughly first, then refine the promising settings; choose the
+  most equal gains (Real included, ties to the larger signal); keep the last 90 deg convention.
+
 ### Exit-while-running dialog laid out more clearly (`exit-guard`)
 
 **What**

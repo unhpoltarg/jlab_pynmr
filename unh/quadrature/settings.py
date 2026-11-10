@@ -46,6 +46,13 @@ DEFAULTS = {
         'edge': 3,            # points left out at each end of the sweep (edge effects of the transform)
     },
     'autotune': {             # Tune-tab Auto Tune (unh/quadrature/autotune.py); its records also go to cal out_dir
+        'map': True,          # start with a coarse map of the whole DAC range; False: refine the hand tunes only
+        'map_steps': 16,      # grid points of the map (one way, plus returns to the Real tune)
+        'map_ref_every': 8,   # back to the Real tune every this many map steps
+        'map_gain_order': 2,  # detector gain change with v over the whole range, polynomial order
+        'clip_margin': 0.01,  # candidates stay this far below where the shifter goes flat (0..1 DAC)
+        'gain_tie': 0.003,    # gain spreads within this of the best count as equal; the larger signal wins
+        'snap_max_deg': 30.0,  # a local pass moving a setting further than this means the map was off: stop
         'offsets': [-0.03, -0.015, 0.0, 0.015, 0.03],  # phase-DAC steps around each tune per pass (0..1)
         'sweeps_per_step': 64,    # rounded up to a multiple of tune_per_chunk
         'max_passes': 3,      # another pass, centred on the new tunes, while a target lies outside its steps
@@ -152,6 +159,8 @@ def load_settings(profile=None, path=CONFIG_FILE):
             raise ValueError('autotune needs at least 3 offsets and polish_offsets, each including 0, '
                              'max_passes >= 1 and bins >= 8')
         a['offsets'], a['polish_offsets'] = offsets, polish
+        if int(a['map_steps']) < 8 or int(a['map_gain_order']) < 0:
+            raise ValueError('autotune needs map_steps >= 8 and map_gain_order >= 0')
     except (ValueError, TypeError, KeyError) as e:
         log.error(f"Quadrature disabled: bad setting in {path}: {e}")
         cfg['enable'] = False

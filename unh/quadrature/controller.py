@@ -28,6 +28,7 @@ from .settings import load_settings, sequence_of
 log = logging.getLogger('PyNMR.unh.quadrature')
 
 SESSION_KEYS = {90: 'phase_tune_q', 180: 'phase_tune_180', 270: 'phase_tune_270'}
+SIDE90_KEY = 'quad_side90'   # which dispersive side Auto Tune calls 90 deg (+1/-1, in phase-increasing-with-DAC terms)
 
 
 class QuadController:
@@ -48,6 +49,7 @@ class QuadController:
             if restore.get(key) is not None:
                 self.sched.tunes[angle] = float(restore[key])
         self.use_default_tunes()
+        self.side90 = restore.get(SIDE90_KEY) if restore.get(SIDE90_KEY) in (1, -1) else None
         self.selected = 0            # tune shown and edited on the Tune tab
         self.current = None          # Assignment of the event being taken
         self.in_run = False
@@ -490,6 +492,8 @@ class QuadController:
         for angle, key in SESSION_KEYS.items():
             if self.sched.tunes.get(angle) is not None:
                 saved[key] = float(self.sched.tunes[angle])
+        if self.side90 in (1, -1):
+            saved[SIDE90_KEY] = int(self.side90)
 
     # -- calibration ---------------------------------------------------------------
     def start_calibration(self):
@@ -533,9 +537,12 @@ class QuadController:
             return
         self.fill_opposites()
         angles = sorted(set(self.sched.sequence) | {0, 90})
-        missing = [a for a in angles if self.sched.tunes.get(a) is None]
-        same = [a for a in angles if a != 0 and a not in missing
-                and abs(self.sched.tunes[a] - self.sched.tunes[0]) < 0.01]
+        mapped = bool(self.cfg['autotune'].get('map', True))
+        if mapped:       # the map finds every tune; only the Real tune is needed, as the phase reference
+            angles_hand = [a for a in angles if self.sched.tunes.get(a) is not None]
+        missing = [] if mapped else [a for a in angles if self.sched.tunes.get(a) is None]
+        same = [] if mapped else [a for a in angles if a != 0 and a not in missing
+                                  and abs(self.sched.tunes[a] - self.sched.tunes[0]) < 0.01]
         problem = None
         if missing:
             problem = f"set the {', '.join(ANGLE_LABELS.get(a, f'{a} deg') for a in missing)} tune by hand first"
@@ -552,13 +559,14 @@ class QuadController:
         if self._resume_tune:
             tune.run_button.setChecked(False)
             tune.run_pushed()                    # stops the tune loop; waits for its thread
-        tunes = {a: float(self.sched.tunes[a]) for a in angles}
+        tunes = {a: float(self.sched.tunes[a]) for a in (angles_hand if mapped else angles)}
         self._autotune_undo = {a: self.sched.tunes.get(a) for a in angles}
         from core.thread_manager import get_thread_manager
         from .calibration import AutoTuneThread
         self.cal_thread = AutoTuneThread(self.mw.config, self.cfg['cal'], tunes, self.mw.config.phase_vout,
                                          self.cfg['autotune'], selected=self.selected,
-                                         profile=getattr(self.mw, 'profile', None), out_dir=self.cal_dir)
+                                         profile=getattr(self.mw, 'profile', None), out_dir=self.cal_dir,
+                                         side90=self.side90, angles=angles)
         self.cal_thread.reply.connect(self.on_autotune_reply)
         self.cal_thread.finished.connect(self.on_cal_finished)
         manager = get_thread_manager()
@@ -568,13 +576,21 @@ class QuadController:
         if self.ui:
             self.ui.autotune_started()
         manager.start_thread(self.cal_thread.thread_name)
-        self.message('Auto Tune running: stepping the phase DAC around ' +
-                     ', '.join(ANGLE_LABELS.get(a, f'{a} deg') for a in angles) + '.')
+        if mapped:
+            self.message('Auto Tune running: mapping the phase DAC, then refining ' +
+                         ', '.join(ANGLE_LABELS.get(a, f'{a} deg') for a in angles) + '.')
+        else:
+            self.message('Auto Tune running: stepping the phase DAC around ' +
+                         ', '.join(ANGLE_LABELS.get(a, f'{a} deg') for a in angles) + '.')
         if self.ui:
             self.ui.refresh()
 
     def on_autotune_reply(self, data):
-        name = 'polish pass' if data.get('polish') else f"pass {data.get('pass', 1)}"
+        label = data.get('label')
+        if label == 'map':
+            name = 'map of the phase DAC'
+        else:
+            name = 'polish pass' if data.get('polish') else f"pass {data.get('pass', 1)}"
         if 'step' in data:
             if self.ui:
                 self.ui.cal_progress(data, what=f'Auto Tune {name}')
@@ -591,6 +607,8 @@ class QuadController:
             new = {int(a): float(v) for a, v in res['tunes'].items()}
             for a, v in new.items():
                 self.sched.tunes[a] = v
+            if res.get('side90') in (1, -1):
+                self.side90 = int(res['side90'])        # kept for the next Auto Tune (saved with the session)
             if self.selected in new:
                 self.mw.config.phase_vout = new[self.selected]   # the thread left the DAC there
             if self.ui:
@@ -697,7 +715,10 @@ def autotune_summary(rec):
         was = f', was {off:+.1f} deg off' if off is not None else ''
         g = res['gain_ratio'].get(a)
         gain = f', gain {g:.3f}' if (g is not None and int(a) != 0) else ''
-        parts.append(f"{name} DAC {float(hand.get(a, v)) * 100:.2f} -> {v * 100:.2f} %{was}{gain}")
+        if a in hand:
+            parts.append(f"{name} DAC {float(hand[a]) * 100:.2f} -> {v * 100:.2f} %{was}{gain}")
+        else:
+            parts.append(f"{name} found at DAC {v * 100:.2f} %{gain}")
     steps = sum(len(p['steps']) for p in rec.get('passes', []))
     pol = res.get('polish') or {}
     if pol.get('used'):
@@ -708,6 +729,18 @@ def autotune_summary(rec):
     else:
         polished = ''
     zero = f" 0 deg: {res['zero_rule']}." if res.get('zero_rule') else ''
+    if res.get('mapped'):
+        twice = []
+        for a, opts in sorted((res.get('choices') or {}).items(), key=lambda kv: int(kv[0])):
+            if len(opts) > 1:
+                listed = ', '.join(f"{o['vout'] * 100:.2f} % (gain {o['gain']:.3f})" for o in opts)
+                kept = next(o['vout'] for o in opts if o['chosen'])
+                twice.append(f"{ANGLE_LABELS.get(int(a), f'{a} deg')} at {listed}: kept {kept * 100:.2f} %")
+        zero += (f" Mapped {res['map']['range_deg']:.0f} deg of phase"
+                 + (f" (flat above {res['map']['clip_vout'] * 100:.0f} % DAC)" if res['map'].get('clip_vout') else '')
+                 + '. ' + ('; '.join(twice) + f" (gains most equal: spread {res['gain_spread'] * 100:.1f} %). "
+                           if twice else '')
+                 + f"90 deg side {res['side90_source']}.")
     warn = (f'<br><span style="color:#d00000">{res["zero_warning"]}.</span>' if res.get('zero_warning') else '')
     return (f"Auto Tune done ({res['passes']} pass{'es' if res['passes'] > 1 else ''}{polished}; {steps} steps): "
             + '; '.join(parts) + f". Absorptive direction at {res['ref_MHz']:.4f} MHz to "

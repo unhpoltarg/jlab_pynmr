@@ -412,7 +412,7 @@ def test_target_angles_follow_the_hand_tunes():
 def test_autotune_thread_finds_true_angles(qapp, sim_config, tmp_path):
     from unh.nmr_sim import simulator as simmod
     from unh.quadrature.calibration import AutoTuneThread
-    at = copy.deepcopy(qs.DEFAULTS['autotune'])
+    at = dict(copy.deepcopy(qs.DEFAULTS['autotune']), map=False)   # the hand-tune method
     hand = {0: V_REAL + 0.02, 90: V_IMAG - 0.015}                       # about 7 and 11 deg off
     t = AutoTuneThread(sim_config, qs.DEFAULTS['cal'], hand, restore_vout=hand[0], at=at, selected=90,
                        out_dir=str(tmp_path / 'qc'))
@@ -513,7 +513,8 @@ def test_autotune_cycle4_swaps_real_and_180_to_follow_the_frown_rule(qapp, sim_c
     from unh.quadrature.calibration import AutoTuneThread
     hand = {0: 0.245, 90: 0.40, 180: 0.515, 270: 0.59}     # Real by hand on the side that curves like the diode
     t = AutoTuneThread(sim_config, qs.DEFAULTS['cal'], hand, restore_vout=hand[0],
-                       at=copy.deepcopy(qs.DEFAULTS['autotune']), selected=0, out_dir=str(tmp_path / 'qc'))
+                       at=dict(copy.deepcopy(qs.DEFAULTS['autotune']), map=False), selected=0,
+                       out_dir=str(tmp_path / 'qc'))
     t.setup()
     t.execute()
     t.cleanup()
@@ -552,3 +553,94 @@ def test_signal_area_has_a_line_per_angle_updated_only_by_its_own_records(tmp_pa
     assert '180\u00b0: -1.400000' in shown['area'] and '270\u00b0: waiting' in shown['area']
     ctrl.on_event_finished({'event': rec(0, 1.6)})
     assert '0\u00b0: 1.600000' in shown['area'] and '90\u00b0: 0.250000' in shown['area']
+
+
+# --- Auto Tune with a coarse map first (autotune: map: True) ----------------------------------------------------
+
+def _true_deg(q, v):
+    """Simulated reference phase of DAC value v, deg past the simulator's absorptive 0, in (-180, 180]."""
+    return (q.phase_dac_deg(v) - 65.7 + 180.0) % 360.0 - 180.0
+
+
+def _mapped_autotune(sim_config, tmp_path, hand, side90=None):
+    from unh.quadrature.calibration import AutoTuneThread
+    t = AutoTuneThread(sim_config, qs.DEFAULTS['cal'], hand, restore_vout=hand[0],
+                       at=copy.deepcopy(qs.DEFAULTS['autotune']), selected=0, out_dir=str(tmp_path / 'qc'),
+                       side90=side90, angles=[0, 90, 180, 270])
+    t.setup()
+    t.execute()
+    t.cleanup()
+    rec = t.record
+    del t
+    gc.collect()
+    return rec
+
+
+def test_mapped_autotune_finds_every_tune_and_the_most_equal_gains(qapp, sim_config, tmp_path):
+    """From rough Real and Imag tunes only, the map finds all four; 180 deg can be reached at two settings, and the
+    one that makes the four gains most equal is kept. The 90 deg side is then kept even if the hand Imag tune moves."""
+    from unh.nmr_sim import simulator as simmod
+    from unh.quadrature import autotune
+    sim_config.settings['nmr_sim']['qmeter']['phase_dac_gain_slope'] = -0.2     # gain falls 20 % across the DAC
+    simmod.reset_simulator()
+    rec = _mapped_autotune(sim_config, tmp_path, {0: V_REAL + 0.02, 90: V_IMAG - 0.015})
+    assert rec['status'] == 'ok', rec['error']
+    res = rec['result']
+    assert [p['kind'] for p in rec['passes']] == ['map', 'candidates', 'polish'] and res['mapped']
+    q = simmod._SIM.qmeter
+    new = {int(a): v for a, v in res['tunes'].items()}
+    # this circuit's diode is a frown, so the frown rule puts 0 deg on the simulator's 180 (as the cycle4 test does)
+    assert abs(_true_deg(q, new[0]) - 180.0) % 360.0 < 0.5 or abs(_true_deg(q, new[0]) + 180.0) < 0.5
+    assert abs(_true_deg(q, new[180])) < 0.5
+    assert abs(_true_deg(q, new[90]) - 90.0) < 0.5 and abs(_true_deg(q, new[270]) + 90.0) < 0.5   # hand Imag side
+    opts = res['choices']['180']
+    assert len(opts) == 2                                  # 180 deg two ways: about 23.8 % and 71.7 % DAC
+    true_gain = lambda v: 1.0 - 0.2 * v
+    def spread(v180):
+        g = [true_gain(new[0]), true_gain(new[90]), true_gain(v180), true_gain(new[270])]
+        return max(g) / min(g)
+    best = min((o['vout'] for o in opts), key=spread)
+    assert new[180] == pytest.approx(best, abs=0.01)       # the most equal gains (here the 71.7 % setting)
+    for a, g in res['gain_ratio'].items():                 # gains measured as the simulator has them
+        assert g == pytest.approx(true_gain(new[int(a)]) / true_gain(new[0]), abs=0.003)
+    assert res['side90_source'] == 'from the hand Imag tune'
+    from unh.quadrature.controller import autotune_summary
+    assert 'kept' in autotune_summary(rec) and '180 deg found at' in autotune_summary(rec)
+    # second run: the hand Imag tune now sits on the other dispersive side; the kept side wins
+    simmod.reset_simulator()
+    rec2 = _mapped_autotune(sim_config, tmp_path, {0: V_REAL, 90: 0.5922}, side90=res['side90'])
+    assert rec2['status'] == 'ok', rec2['error']
+    new2 = {int(a): v for a, v in rec2['result']['tunes'].items()}
+    assert abs(_true_deg(simmod._SIM.qmeter, new2[90]) - 90.0) < 0.5
+    assert rec2['result']['side90_source'] == 'kept from the last Auto Tune'
+
+
+def test_candidates_and_the_choice_rule():
+    from unh.quadrature import autotune
+    lev = np.linspace(0.0, 0.9, 10)
+    phi = np.linspace(-60.0, 420.0, 10)                    # 480 deg: 0 deg (mod 360) is reached twice
+    c = autotune.candidates_for(lev, phi, 0.0, 0.0, 0.9)
+    assert len(c) == 2 and c[0] == pytest.approx(60 / 480 * 0.9, abs=1e-4) and c[1] == pytest.approx(0.7875, abs=1e-4)
+    assert autotune.candidates_for(lev, phi, 0.0, 0.0, 0.5) == [c[0]]       # the second is above the usable top
+    assert len(autotune.candidates_for(lev, phi, 180.0, 0.0, 0.9)) == 1
+    pick, spread = autotune.choose_combination({0: {0.2: 1.00}, 180: {0.3: 0.957, 0.7: 0.970}})
+    assert pick == {0: 0.2, 180: 0.7} and spread == pytest.approx(1 / 0.970 - 1)
+    # within the tie margin the larger signal wins
+    pick, _ = autotune.choose_combination({0: {0.2: 1.00}, 180: {0.3: 0.999, 0.7: 1.0015}}, tie=0.003)
+    assert pick[180] == 0.7
+    pick, _ = autotune.choose_combination({0: {0.2: 1.00, 0.8: 1.10}, 90: {0.5: 1.05}})
+    assert pick == {0: 0.8, 90: 0.5} or pick == {0: 0.2, 90: 0.5}         # both 5 % apart: the larger mean
+    assert pick == {0: 0.8, 90: 0.5}
+    assert autotune.side_from_hand(80.0, 0.0) == 1 and autotune.side_from_hand(-100.0, 0.0) == -1
+
+
+def test_side90_is_saved_with_the_session(tmp_path):
+    fake = FakeMain(tmp_path)
+    ctrl = controller(fake)
+    assert ctrl.side90 is None
+    ctrl.side90 = -1
+    saved = {}
+    ctrl.save_session(saved)
+    assert saved['quad_side90'] == -1
+    fake.restore_dict = dict(fake.restore_dict, quad_side90=-1)
+    assert controller(fake).side90 == -1

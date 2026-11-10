@@ -205,8 +205,18 @@ While the Run tab's **Quadrature** box is ticked, events alternate between them 
 **Auto Calibrate Phase** on the Tune tab steps the phase DAC and fits the angle and gain of each tune.
 Calibration files go to `<event_dir>/quad_cal/`.
 
-**Auto Tune** on the Tune tab (`quadrature/autotune.py`): set each tune the sequence uses roughly by hand
-(within about 30°), then click it.
+**Auto Tune** on the Tune tab (`quadrature/autotune.py`). Since 2026-11-10 (`autotune: map: True`) it needs no
+hand tunes:
+- It first maps the whole phase-DAC range (16 settings plus returns to Real) and fits phase, gain and the flat top.
+- Angles the shifter reaches twice (it covers more than a turn) give two candidate settings. A local pass refines
+  every candidate and measures its gain. The set with the most equal gains is kept (near-ties: the larger
+  signal), so 0/-180 and 90/-270 cancel detector offsets well. A polish pass gives the final tunes.
+- Which side is 90° is kept from the last Auto Tune (`quad_side90` in the session); the first time it is the side
+  nearer the hand Imag tune.
+- About 70 s for Real/Imag and 2 min for cycle4 on the box.
+
+With `map: False` it refines hand tunes only: set each tune the sequence uses roughly by hand (within about 30°),
+then click it.
 - It pauses the Tune loop and steps the phase DAC through 5 values around each tune. It fits the complex
   Q-curve W(f) and moves the tunes to the true angles. Then it starts the Tune loop again.
 - 0° is the absorptive direction at the centre frequency. That is the normal to the Q-curve's trace in the

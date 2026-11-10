@@ -283,6 +283,25 @@ def step_plan(centres, offsets, v_lo, v_hi):
     return plan
 
 
+def _trace_of(fit, freqs_MHz, cfg):
+    """fit_trace on a calibration fit's W, with the mask_khz bins left out. Returns (trace, bin freqs, W)."""
+    bins = int(fit['bins'])
+    W = np.asarray(fit['W_abs_V']) * np.exp(1j * np.radians(fit['W_angle_deg']))
+    fb = calfit.bin_sweep(freqs_MHz, bins)
+    mask = None
+    if cfg.get('mask_khz'):
+        fc = 0.5 * (fb.min() + fb.max())
+        off = (fb - fc) * 1000.0
+        mask = np.ones(len(fb), dtype=bool)
+        for lo, hi in cfg['mask_khz']:
+            mask &= ~((off >= lo) & (off <= hi))
+    trace = fit_trace(fb, W, mask, ref_MHz=cfg.get('ref_MHz'))
+    trace['bin_freqs_MHz'] = fb.tolist()
+    trace['W_re_V'] = W.real.tolist()
+    trace['W_im_V'] = W.imag.tolist()
+    return trace, fb, W
+
+
 def analyse_pass(steps, freqs_MHz, centres, cfg, v_range):
     """Fit one pass and work out the new tunes.
 
@@ -306,19 +325,7 @@ def analyse_pass(steps, freqs_MHz, centres, cfg, v_range):
     if not fit.get('success'):
         out['message'] = f"local calibration fit failed: {fit.get('message')}"
         return out
-    W = np.asarray(fit['W_abs_V']) * np.exp(1j * np.radians(fit['W_angle_deg']))
-    fb = calfit.bin_sweep(freqs_MHz, bins)
-    mask = None
-    if cfg.get('mask_khz'):
-        fc = 0.5 * (fb.min() + fb.max())
-        off = (fb - fc) * 1000.0
-        mask = np.ones(len(fb), dtype=bool)
-        for lo, hi in cfg['mask_khz']:
-            mask &= ~((off >= lo) & (off <= hi))
-    trace = fit_trace(fb, W, mask, ref_MHz=cfg.get('ref_MHz'))
-    trace['bin_freqs_MHz'] = fb.tolist()
-    trace['W_re_V'] = W.real.tolist()
-    trace['W_im_V'] = W.imag.tolist()
+    trace, fb, W = _trace_of(fit, freqs_MHz, cfg)
     out['trace'] = trace
     if not trace.get('success'):
         out['message'] = f"trace fit failed: {trace.get('message')}"
@@ -361,4 +368,235 @@ def analyse_pass(steps, freqs_MHz, centres, cfg, v_range):
         }
     out['converged'] = bool(converged)
     out['success'] = True
+    return out
+
+
+# --- Auto Tune with a coarse map first (autotune: map: True) -----------------------------------------------
+#
+# 1. A coarse scan over the whole phase-DAC range (map_plan), fitted like a calibration (analyse_map): the phase and
+#    gain at every setting, where the shifter goes flat, and the absorptive direction from the Q-curve. The shifter
+#    covers more than a turn, so some angles can be reached at two settings a turn apart: every such setting is a
+#    candidate (candidates_for).
+# 2. Local passes around every candidate (cluster_plan, analyse_snap): each is moved to the nearest quadrature
+#    direction and its gain measured.
+# 3. The combination of settings with the most equal gains is kept, ties going to the larger signal
+#    (choose_combination); a polish pass around it gives the final tunes.
+# Which dispersive side is 90 deg can't be measured (phi -> -phi, W -> conj W gives the same data). In the map's frame
+# (phase increasing with DAC, as calfit reports it) 90 deg is zero + 90 * side90, with side90 = +1 or -1 kept from the
+# last Auto Tune; the first time it comes from the hand Imag tune.
+
+
+def map_plan(v_ref, v_lo, v_hi, steps, ref_every):
+    """Coarse-map steps: an evenly spaced grid over [v_lo, v_hi], one way, with returns to v_ref (first and last too).
+
+    Returns:
+        list of dicts {vout, pass, kind, angle}: kind 'grid' or 'ref'; angle is 'map'
+    """
+    plan = calfit.step_plan({'v_min': v_lo, 'v_max': v_hi, 'steps': int(steps), 'passes': 1,
+                             'ref_every': int(ref_every)}, float(v_ref))
+    for p in plan:
+        p['angle'] = 'map'
+    return plan
+
+
+def side_from_hand(phi_hand90, zero_deg):
+    """+1 if the hand Imag tune's phase is nearer zero + 90 deg, -1 if nearer zero - 90 deg."""
+    plus = abs(float(_wrap180(phi_hand90 - (zero_deg + 90.0))))
+    minus = abs(float(_wrap180(phi_hand90 - (zero_deg - 90.0))))
+    return 1 if plus <= minus else -1
+
+
+def quad_targets(zero_deg, side90, angles):
+    """Target phase (deg, map frame) of each angle: 0 -> zero, 90 -> zero + 90 side90, 180 and 270 opposite."""
+    t = {0: zero_deg, 90: zero_deg + 90.0 * side90, 180: zero_deg + 180.0, 270: zero_deg - 90.0 * side90}
+    return {int(a): float(t[int(a)]) for a in angles}
+
+
+def candidates_for(levels, phi_deg, target_deg, v_lo, v_hi):
+    """Every DAC value in [v_lo, v_hi] whose phase is target_deg modulo 360 (linear between the map's levels)."""
+    lev = np.asarray(levels, dtype=float)
+    phi = np.degrees(np.unwrap(np.radians(np.asarray(phi_deg, dtype=float))))
+    keep = (lev >= v_lo - 1e-9) & (lev <= v_hi + 1e-9)
+    lev, phi = lev[keep], phi[keep]
+    if len(lev) < 2:
+        return []
+    dense = np.linspace(lev.min(), lev.max(), 20001)
+    p = np.interp(dense, lev, phi)
+    out = []
+    k_lo = int(np.floor((p.min() - target_deg) / 360.0)) - 1
+    k_hi = int(np.ceil((p.max() - target_deg) / 360.0)) + 1
+    for k in range(k_lo, k_hi + 1):
+        t = target_deg + 360.0 * k
+        for i in np.nonzero(np.diff(np.sign(p - t)))[0]:
+            v = dense[i] + (t - p[i]) * (dense[i + 1] - dense[i]) / (p[i + 1] - p[i])
+            out.append(round(float(v), 5))
+    return sorted(set(out))
+
+
+def choose_combination(gains, tie=0.003):
+    """The candidate settings with the most equal gains.
+
+    Args:
+        gains: {angle: {vout: gain}} candidates for every angle (gains on one common scale)
+        tie: combinations whose spread is within this of the best count as tied; the larger mean gain wins
+
+    Returns:
+        ({angle: vout}, spread): spread = max gain / min gain - 1 of the chosen settings
+    """
+    import itertools
+    angles = sorted(gains)
+    combos = []
+    for pick in itertools.product(*[sorted(gains[a].items()) for a in angles]):
+        g = np.array([x[1] for x in pick])
+        combos.append((float(g.max() / g.min() - 1.0), float(g.mean()), {a: x[0] for a, x in zip(angles, pick)}))
+    best = min(c[0] for c in combos)
+    tied = [c for c in combos if c[0] <= best + tie]
+    spread, _, choice = max(tied, key=lambda c: c[1])
+    return choice, spread
+
+
+def analyse_map(steps, freqs_MHz, v_ref, cfg, v_range, angles, side90=None, hand=None):
+    """Fit the coarse map and list the candidate settings for each angle.
+
+    Args:
+        steps: map steps (vout, t_s, phase, diode)
+        v_ref: the reference DAC value (the hand Real tune; phase 0 of the map's frame)
+        cfg: the 'autotune' settings dict
+        v_range: (v_lo, v_hi) usable DAC range
+        angles: the angles wanted (0 and 90, plus 180/270 for cycle4)
+        side90: +1/-1 kept from the last Auto Tune, or None to take it from hand[90]
+        hand: {angle: vout} the operator's tunes (for side90 the first time, and to report how far off they were)
+
+    Returns:
+        dict (JSON-ready): fit, trace, zero_deg, zero_rule, side90, side90_source, targets, usable range,
+        candidates {angle: [vout, ...]}, map_gain {angle: {vout: gain}}, hand_error_deg, success, message
+    """
+    fit = calfit.fit_calibration([s['vout'] for s in steps], [s['t_s'] for s in steps],
+                                 [s['phase'] for s in steps], float(v_ref),
+                                 gain_order=int(cfg['map_gain_order']), offset_order=int(cfg['offset_order']),
+                                 fit_drift=bool(cfg['fit_drift']), bins=int(cfg['bins']), v_range=v_range)
+    out = {'fit': fit, 'trace': None, 'success': False, 'message': ''}
+    if not fit.get('success'):
+        out['message'] = f"map fit failed: {fit.get('message')}"
+        return out
+    trace, fb, W = _trace_of(fit, freqs_MHz, cfg)
+    out['trace'] = trace
+    if not trace.get('success'):
+        out['message'] = f"trace fit failed: {trace.get('message')}"
+        return out
+    theta = float(trace['theta_ref_deg'])
+    lev = np.asarray(fit['phi_table']['vout'])
+    phi = np.asarray(fit['phi_table']['phi_deg'])
+    zero, note = None, None
+    if cfg.get('zero_by_curvature', True):
+        diodes = [np.asarray(s['diode'], dtype=float) for s in steps if s.get('diode') is not None]
+        if diodes and len(diodes[0]) == len(freqs_MHz):
+            dcurv = wing_curvature(freqs_MHz, np.mean(diodes, axis=0), with_error=True)
+            zero, note = frown_zero(fb, W, theta, dcurv)
+    if zero is None:                       # the absorptive direction nearer the hand Real tune (phase 0 here)
+        zero = min((theta, theta + 180.0), key=lambda t: abs(float(_wrap180(t))))
+        note = note or 'nearest the hand Real tune'
+    hand = {int(a): float(v) for a, v in (hand or {}).items() if v is not None}
+    if side90 in (1, -1):
+        source = 'kept from the last Auto Tune'
+    elif 90 in hand and 0 in hand and abs(hand[90] - hand[0]) >= 0.01:
+        side90 = side_from_hand(float(np.interp(hand[90], lev, phi)), zero)
+        source = 'from the hand Imag tune'
+    else:
+        side90 = 1
+        source = 'default (no hand Imag tune)'
+    targets = quad_targets(zero, side90, angles)
+    lo, hi = float(v_range[0]), float(v_range[1])
+    clip = fit.get('clip_vout')
+    if clip is not None:
+        hi = min(hi, float(clip) - float(cfg.get('clip_margin', 0.01)))
+    cands, gains = {}, {}
+    for a, t in targets.items():
+        cands[a] = candidates_for(lev, phi, t, lo, hi)
+        gains[a] = {v: calfit.gain_at(fit, v) for v in cands[a]}
+    out.update({
+        'zero_deg': float(zero), 'zero_rule': note, 'side90': int(side90), 'side90_source': source,
+        'targets': {str(a): t for a, t in targets.items()}, 'usable': [lo, hi], 'clip_vout': clip,
+        'candidates': {str(a): c for a, c in cands.items()},
+        'map_gain': {str(a): {str(v): g for v, g in gains[a].items()} for a in gains},
+        'hand_error_deg': {str(a): float(_wrap180(np.interp(v, lev, phi) - targets[a]))
+                           for a, v in hand.items() if a in targets},
+    })
+    missing = [a for a, c in cands.items() if not c]
+    if missing:
+        out['message'] = ("no phase-DAC setting below the shifter's flat top reaches "
+                          + ', '.join(f'{a} deg' for a in missing))
+        return out
+    out['success'] = True
+    out['message'] = 'ok'
+    return out
+
+
+def cluster_plan(v_ref, centres, offsets, v_lo, v_hi):
+    """Steps for a local pass: v_ref first and after each cluster, and a cluster around each centre.
+
+    Args:
+        centres: {key: vout}; the key labels the cluster (any hashable)
+
+    Returns:
+        list of dicts {vout, pass, kind, angle}; angle is the cluster's key ('ref' for the returns to v_ref)
+    """
+    ref = {'vout': float(v_ref), 'pass': 1, 'kind': 'ref', 'angle': 'ref'}
+    plan = [dict(ref)]
+    for key, c in sorted(centres.items(), key=lambda kv: kv[1]):
+        for d in offsets:
+            v = float(np.clip(round(float(c) + d, 6), v_lo, v_hi))
+            plan.append({'vout': v, 'pass': 1, 'kind': 'ref' if abs(v - v_ref) < 1e-9 else 'cluster', 'angle': key})
+        plan.append(dict(ref))
+    return plan
+
+
+def analyse_snap(steps, freqs_MHz, v_ref, centres, cfg, v_range, offsets):
+    """Fit a local pass and move each cluster's centre to the nearest quadrature direction.
+
+    Snapping to the nearest of theta, theta + 90, theta + 180, theta + 270 needs no labels and no sign convention (a
+    flipped frame flips everything together), so the map decides which setting is which angle and this pass only
+    refines. A snap of more than snap_max_deg means the map was off by a lot: reported, not trusted.
+
+    Returns:
+        dict (JSON-ready): fit, trace, tunes {key: {from_vout, to_vout, inside, snap_deg, gain}}, converged,
+        success, message
+    """
+    fit = calfit.fit_calibration([s['vout'] for s in steps], [s['t_s'] for s in steps],
+                                 [s['phase'] for s in steps], float(v_ref),
+                                 gain_order=int(cfg['gain_order']), offset_order=int(cfg['offset_order']),
+                                 fit_drift=bool(cfg['fit_drift']), bins=int(cfg['bins']), v_range=v_range)
+    out = {'fit': fit, 'trace': None, 'tunes': {}, 'converged': False, 'success': False, 'message': ''}
+    if not fit.get('success'):
+        out['message'] = f"local fit failed: {fit.get('message')}"
+        return out
+    trace, fb, W = _trace_of(fit, freqs_MHz, cfg)
+    out['trace'] = trace
+    if not trace.get('success'):
+        out['message'] = f"trace fit failed: {trace.get('message')}"
+        return out
+    theta = float(trace['theta_ref_deg'])
+    lev = np.asarray(fit['phi_table']['vout'])
+    phi = np.asarray(fit['phi_table']['phi_deg'])
+    half = max(abs(d) for d in offsets) + 1e-6
+    snap_max = float(cfg.get('snap_max_deg', 30.0))
+    converged, far = True, []
+    for key, c in centres.items():
+        near = np.abs(lev - c) <= half
+        h = float(np.interp(c, lev[near], phi[near]))
+        snap = min((float(_wrap180(theta + 90.0 * k - h)) for k in range(4)), key=abs)
+        vout, inside = solve_dac(lev[near], phi[near], h + snap, c)
+        vout = float(np.clip(vout, v_range[0], v_range[1]))
+        converged &= inside
+        if abs(snap) > snap_max:
+            far.append(str(key))
+        out['tunes'][str(key)] = {'from_vout': float(c), 'to_vout': round(vout, 5), 'inside': inside,
+                                  'snap_deg': snap, 'gain': calfit.gain_at(fit, vout)}
+    out['converged'] = bool(converged)
+    if far:
+        out['message'] = (f"the map was more than {snap_max:.0f} deg off at {', '.join(far)}; "
+                          'try again, or set the tunes by hand and turn the map off')
+        return out
+    out['success'] = True
+    out['message'] = 'ok'
     return out

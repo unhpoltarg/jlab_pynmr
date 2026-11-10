@@ -241,10 +241,146 @@ class AutoTuneThread(CalibrationThread):
         then {'autotune_done': True, 'record': dict, 'path': str}
     """
 
-    def __init__(self, config, cal, tunes, restore_vout, at, selected=0, profile=None, out_dir=None):
+    def __init__(self, config, cal, tunes, restore_vout, at, selected=0, profile=None, out_dir=None, side90=None,
+                 angles=None):
         super().__init__(config, cal, tunes, restore_vout, profile=profile, out_dir=out_dir)
         self.at = dict(at)
         self.selected = int(selected)
+        self.side90 = side90 if side90 in (1, -1) else None    # which dispersive side is 90 deg (map: True)
+        self.angles = sorted({int(a) for a in (angles or self.tunes)} | {0})   # angles to tune (map: True)
+
+    def _run_steps(self, plan, n, label, n_chunks, settle_s, t0):
+        """Take the steps of ``plan``. Returns the steps taken; sets the record's status to 'stopped' on a stop."""
+        steps = []
+        for i, step in enumerate(plan):
+            if self.should_stop():
+                self.record['status'] = 'stopped'
+                break
+            ok = self._set_phase(step['vout'])
+            time.sleep(settle_s)
+            t_step = time.monotonic() - t0
+            num, phase, diode = self._acquire(n_chunks)
+            steps.append({'order': i, 'vout': step['vout'], 'angle': step['angle'], 'kind': step['kind'],
+                          't_s': t_step, 'stamp': time.time(), 'dac_ok': ok, 'num': int(num),
+                          'phase': None if phase is None else phase.tolist(),
+                          'diode': None if diode is None else diode.tolist()})
+            self.emit_reply({'step': i + 1, 'of': len(plan), 'pass': n, 'label': label, 'polish': label == 'polish',
+                             'vout': step['vout'], 't_s': time.monotonic() - t0, 'kind': step['kind'],
+                             'mean_phase': None if phase is None else float(np.mean(phase)),
+                             'mean_diode': None if diode is None else float(np.mean(diode)),
+                             'phase': phase, 'diode': diode})            # for the Tune tab's live plots
+        return steps
+
+    def _snap_pass(self, n, label, v_ref, centres, offsets, cfg, freqs, v_range, n_chunks, settle_s, t0):
+        """A local pass around ``centres`` ({key: vout}), analysed with autotune.analyse_snap. Returns the analysis,
+        or None if stopped or failed (status and error set)."""
+        from . import autotune
+        rec = self.record
+        plan = autotune.cluster_plan(v_ref, centres, offsets, *v_range)
+        steps = self._run_steps(plan, n, label, n_chunks, settle_s, t0)
+        this = {'pass': n, 'kind': label, 'v_ref': float(v_ref),
+                'centres': {str(k): v for k, v in centres.items()}, 'offsets': list(offsets), 'steps': steps,
+                'analysis': None}
+        rec['passes'].append(this)
+        if rec['status'] == 'stopped':
+            return None
+        good = [s for s in steps if s['phase'] is not None and s['dac_ok']]
+        self.emit_reply({'stage': 'fitting', 'steps': len(good), 'pass': n, 'label': label,
+                         'polish': label == 'polish'})
+        try:
+            res = autotune.analyse_snap(good, freqs, v_ref, centres, cfg, v_range, offsets)
+        except Exception as e:
+            res = {'success': False, 'message': f'fit failed: {e}'}
+        this['analysis'] = res
+        self._save()
+        if not res.get('success'):
+            rec['status'] = 'failed'
+            rec['error'] = res.get('message')
+            return None
+        return res
+
+    def _execute_map(self, cfg, freqs, v_range, n_chunks, settle_s, t0):
+        """Auto Tune with a coarse map first (autotune.py, 'Auto Tune with a coarse map first'). Fills rec['result']."""
+        from . import autotune
+        rec, at = self.record, self.at
+        angles = self.angles
+        v_ref = float(self.tunes[0])
+        # 1. the coarse map
+        plan = autotune.map_plan(v_ref, v_range[0], v_range[1], at['map_steps'], at['map_ref_every'])
+        steps = self._run_steps(plan, 1, 'map', n_chunks, settle_s, t0)
+        this = {'pass': 1, 'kind': 'map', 'steps': steps, 'analysis': None}
+        rec['passes'].append(this)
+        if rec['status'] == 'stopped':
+            return
+        good = [s for s in steps if s['phase'] is not None and s['dac_ok']]
+        self.emit_reply({'stage': 'fitting', 'steps': len(good), 'pass': 1, 'label': 'map', 'polish': False})
+        try:
+            m = autotune.analyse_map(good, freqs, v_ref, cfg, v_range, angles, side90=self.side90, hand=self.tunes)
+        except Exception as e:
+            m = {'success': False, 'message': f'map fit failed: {e}'}
+        this['analysis'] = m
+        self._save()
+        if not m.get('success'):
+            rec['status'], rec['error'] = 'failed', m.get('message')
+            return
+        # 2. local passes around every candidate, repeated while one lands outside its steps
+        centres = {f'{a}@{v:.5f}': v for a in angles for v in m['candidates'][str(a)]}
+        angle_of = {k: int(k.split('@')[0]) for k in centres}
+        n, res = 1, None
+        for n in range(2, int(at['max_passes']) + 2):
+            res = self._snap_pass(n, 'candidates', v_ref, centres, at['offsets'], cfg, freqs, v_range, n_chunks,
+                                  settle_s, t0)
+            if res is None:
+                return
+            new = {k: t['to_vout'] for k, t in res['tunes'].items()}
+            if res['converged']:
+                break
+            centres = new
+        else:
+            rec['status'] = 'not converged'
+            rec['error'] = f"a setting was still outside its steps after {at['max_passes']} passes"
+            return
+        # 3. the most equal gains (one common scale: this pass's fit, relative to v_ref)
+        gains = {}
+        for k, t in res['tunes'].items():
+            gains.setdefault(angle_of[k], {})[t['to_vout']] = t['gain']
+        choice, spread = autotune.choose_combination(gains, float(at.get('gain_tie', 0.003)))
+        choices = {str(a): [{'vout': v, 'gain': g / gains[0][choice[0]], 'chosen': v == choice[a]}
+                            for v, g in sorted(gains[a].items())] for a in gains}
+        final, polish = res, None
+        tunes = dict(choice)
+        if at.get('polish', True):
+            pol = self._snap_pass(n + 1, 'polish', choice[0], {str(a): v for a, v in choice.items()},
+                                  at['polish_offsets'], cfg, freqs, v_range, n_chunks, settle_s, t0)
+            if pol is not None and pol['converged']:
+                final = pol
+                tunes = {int(k): t['to_vout'] for k, t in pol['tunes'].items()}
+                polish = {'used': True, 'moved_deg': {k: t['snap_deg'] for k, t in pol['tunes'].items()}}
+            else:
+                rec['status'], rec['error'] = 'running', None    # a stopped or failed polish keeps the pass's answer
+                polish = {'used': False, 'message': (pol or {}).get('message') or
+                          ('stopped' if self.should_stop() else 'a setting outside the polish steps')}
+        if final is res:
+            g0 = gains[0][choice[0]]
+            gain_ratio = {str(a): gains[a][choice[a]] / g0 for a in choice}
+        else:
+            g0 = final['tunes']['0']['gain']
+            gain_ratio = {k: t['gain'] / g0 for k, t in final['tunes'].items()}
+        rec['result'] = {
+            'tunes': {str(a): v for a, v in tunes.items()},
+            'hand_error_deg': m.get('hand_error_deg', {}),
+            'gain_ratio': gain_ratio, 'gain_spread': spread, 'choices': choices,
+            'side90': m['side90'], 'side90_source': m['side90_source'],
+            'map': {'range_deg': m['fit'].get('range_deg'), 'clip_vout': m.get('clip_vout'), 'usable': m['usable'],
+                    'steps': len(steps)},
+            'theta_ref_err_deg': final['trace']['theta_ref_err_deg'],
+            'arc_deg': final['trace']['arc_deg'], 'ref_MHz': final['trace']['ref_MHz'],
+            'residual_rel': final['trace']['residual_rel'], 'passes': n, 'polish': polish,
+            'zero_rule': m.get('zero_rule'), 'zero_warning': None, 'mapped': True,
+        }
+        rec['status'] = 'ok'
+        if self.selected in tunes:
+            self.restore_vout = float(tunes[self.selected])
 
     def _pass(self, n, centres, offsets, cfg, freqs, v_range, n_chunks, settle_s, t0, kind):
         """One Auto Tune pass: the steps around ``centres`` and their fit (autotune.analyse_pass).
@@ -319,7 +455,13 @@ class AutoTuneThread(CalibrationThread):
         self.record = rec
         centres = dict(self.tunes)
         try:
+            if at.get('map', True):
+                self._execute_map(cfg, freqs, v_range, n_chunks, settle_s, t0)
+                if rec['status'] == 'running':
+                    rec['status'], rec['error'] = 'failed', rec.get('error') or 'no result'
             for n in range(1, int(at['max_passes']) + 1):
+                if at.get('map', True):
+                    break
                 res = self._pass(n, centres, at['offsets'], cfg, freqs, v_range, n_chunks, settle_s, t0, 'main')
                 if res is None:
                     break

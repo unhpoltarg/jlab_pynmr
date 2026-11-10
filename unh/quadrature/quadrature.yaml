@@ -40,9 +40,20 @@ dispersion:
     order: 3
     edge: 3
 
-# Auto Tune (Tune tab): refines the hand-set tunes to the true 0/90/180/270 deg from the Q-curve.
+# Auto Tune (Tune tab): finds the true 0/90/180/270 deg Phase Tunes from the Q-curve.
 # 0 deg = the absorptive direction at the centre frequency (the normal to the Q-curve's trace there).
+# With map: True it first maps the whole phase-DAC range (about 20 steps), lists every setting that reaches each
+# angle (the shifter covers more than a turn, so some angles have two), refines them all, and keeps the set whose
+# gains are most equal (ties: the larger signal). Which side is 90 deg is kept from the last Auto Tune (the first
+# time, from the hand Imag tune). map: False only refines the hand tunes, as before 2026-11-10.
 autotune:
+    map: True
+    map_steps: 16       # map grid points over cal v_min..v_max, one way
+    map_ref_every: 8    # back to the Real tune every 8 map steps
+    map_gain_order: 2   # gain change with v over the whole range, polynomial order
+    clip_margin: 0.01   # stay this far (DAC 0..1) below where the shifter goes flat
+    gain_tie: 0.003     # gain spreads within 0.3 % of the best count as equal; then the larger signal wins
+    snap_max_deg: 30    # if a local pass must move a setting further than this, the map was off: stop and say so
     offsets: [-0.03, -0.015, 0.0, 0.015, 0.03]  # phase-DAC steps around each tune (0..1); about 5 steps per tune
     sweeps_per_step: 64
     max_passes: 3       # repeat, centred on the new tunes, while a target lies outside the steps

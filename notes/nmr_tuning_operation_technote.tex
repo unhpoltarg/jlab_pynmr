@@ -72,10 +72,10 @@ python pynmr_main.py -p Deuteron
   (In the \code{TestSimQuad} simulator the \btn{Event Label} also drives the target: None/Baseline, TE, Polarize, Junk.)
 \item \mk{3} \textbf{Sweeps per Event} $=64\times N$: \btn{Unlock}, set $N$ (default 1), \btn{Set}.
 \item \mk{4} \textbf{Tune tab:} \btn{Run} the tune loop and tune the tank with \btn{Diode Tune Control}.
-\item \mk{5} \textbf{Rough phase tunes:} select \btn{Real (0°)} and set the \btn{Phase Tune} by eye so the Q-curve looks
-  absorptive; select \btn{Imag (90°)} and set it about a quarter turn away (cycle4: also $180^\circ$, $270^\circ$).
-  Within about $30^\circ$ is enough. Last cooldown's tunes are loaded as defaults.
-\item \mk{6} \textbf{Auto Tune} (about 50~s; the tune loop pauses and restarts by itself). While it scans,
+\item \mk{5} \textbf{Rough phase tunes} (optional): Auto Tune maps the whole phase-DAC range first, so it needs no
+  hand tunes. The Real tune is its phase reference, and the very first time the Imag tune tells it which
+  dispersive side to call $90^\circ$; after that the side is kept. Last cooldown's tunes are loaded as defaults.
+\item \mk{6} \textbf{Auto Tune} (about 70~s for Real/Imag, 2~min for cycle4; the tune loop pauses and restarts by itself). While it scans,
   \btn{Phase Tune Control} shows the setting being measured and the tune controls are locked; at the end
   it shows the new tune.
 \item \mk{7} \textbf{Check} the result line (how far each tune was off, $\pm$ error) and the trace plot. Wrong?
@@ -350,8 +350,23 @@ operator's latest) always wins.
 
 \subsection{Auto Tune}
 \label{sec:autotune}
-\btn{Auto Tune} refines every tune the current sequence uses (Real and Imag, plus $180^\circ$ and $270^\circ$ for
-cycle4) in one click.
+\btn{Auto Tune} finds every tune the current sequence uses (Real and Imag, plus $180^\circ$ and $270^\circ$ for
+cycle4) in one click. Since 2026-11-10 it starts with a coarse map (\code{autotune: map: True}):
+\begin{enumerate}
+\item It steps the phase DAC over its whole range (16 settings, with returns to the Real tune) and fits the result
+  as a calibration: the phase and gain at every setting, where the shifter goes flat, and the absorptive
+  direction from the Q-curve.
+\item The shifter covers more than a turn (about 456$^\circ$ on the box), so some angles can be reached at two
+  settings a turn apart. Every setting that reaches each angle below the flat top is a candidate.
+\item A local pass (five settings around each candidate) refines them all and measures their gains.
+\item It keeps the combination whose gains are most equal, so that $0^\circ$ and $-1\times180^\circ$ (and $90^\circ$
+  and $-1\times270^\circ$) cancel the detector offsets well; near-ties (within 0.3\,\%) go to the larger signal.
+  The result line lists both settings for any angle reached twice and says which was kept.
+\item A polish pass around the kept settings gives the final tunes.
+\end{enumerate}
+Which dispersive side is $90^\circ$ can't be measured from projections. Auto Tune keeps the side it used last time
+(saved with the session); the first time, it takes the side nearer the hand Imag tune. With
+\code{map: False} it only refines the hand tunes, as below (the method before 2026-11-10).
 \begin{enumerate}
 \item It pauses the Tune loop if it is running.
 \item For each tune it steps the phase DAC through five settings ($-3$, $-1.5$, $0$, $+1.5$, $+3$\,\% of full
@@ -380,7 +395,8 @@ is kept.
   that Real is on the smile side and should be moved about half a turn by hand.
 \item \code{autotune: zero\_by\_curvature: False} in \code{quadrature.yaml} turns the rule off.
 \end{itemize}
-A Real/Imag pair takes one pass of 13 steps plus the 13-step polish, about 50~s on the box. A step is one DAC
+With the map, a Real/Imag pair takes about 45--55 steps (about 70~s on the box) and cycle4 about 75 (about
+2~min). Without it, a Real/Imag pair takes one pass of 13 steps plus the 13-step polish, about 50~s on the box. A step is one DAC
 setting visited automatically (64 sweeps); for the operator it is still one click. In the simulator, a cycle4 set
 with hand tunes 12--32$^\circ$ off took two passes and the polish (75 steps) and landed every tune within
 $0.15^\circ$, which is the statistical error of the absorptive direction itself.
