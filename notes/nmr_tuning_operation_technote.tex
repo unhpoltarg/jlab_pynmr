@@ -277,12 +277,13 @@ deuteron Larmor frequency: \btn{Auto Tune} finds the absorptive phase at the cen
 The box delivers sweeps in chunks of 64, and when asked for 32 it returned 64. Sweep counts are therefore whole
 chunks:
 \begin{itemize}
-\item \textbf{Run tab, Sweeps per Event:} $64\times N$, with $N$ set by the operator (default 10, i.e.\ 640
+\item \textbf{Run tab, Sweeps per Event:} $64\times N$, with $N$ set by the operator (default 1, i.e.\ 64
   sweeps). Press \btn{Unlock}, change $N$, press \btn{Set}, as before.
 \item \textbf{Tune tab, Sweeps for Running Average:} $64\times N$, default $N=1$. Larger $N$ gives a smoother
   plot but makes it lag the knobs by about 1.8~s per chunk.
 \item The tune chunk itself (\code{tune\_per\_chunk} in \code{pynmr\_config.yaml}) is 64 sweeps, so the Tune loop,
-  \btn{Auto Tune} and \btn{Auto Calibrate Phase} all use 64-sweep chunks.
+  \btn{Auto Tune} and \btn{Auto Calibrate Phase} all use 64-sweep chunks. A chunk takes about 1.8~s, so the
+  tune connection waits up to 5~s for it (\code{timeout\_tune}; JLab's 1~s made the Tune loop stop after one try).
 \end{itemize}
 
 \subsection{The wing fit: points per side}
