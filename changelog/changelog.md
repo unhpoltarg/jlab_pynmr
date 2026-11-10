@@ -15,6 +15,16 @@ Conventions:
 
 ## 2026-11-10
 
+### Exit-while-running dialog laid out more clearly (`exit-guard`)
+
+**What**
+- `gui/main_window.py` (`ExitDialog`, inside `UNH-HOOK exit-guard` blocks): the buttons read
+  "Ignore. / I am an expert and / I understand the consequences." and "Abort! / I didn't mean to / make this
+  appear!" on three centred lines, with padding, centred under the message. The message is centred, and the
+  dialog has margins and spacing and sizes itself to fit (318 x 167 px offscreen, was a cramped 433 x 101).
+
+**Why**
+- Ells: multi-line centred labels and text, and a reasonably sized pop-up.
 ### Phase Tune Control follows Auto Tune and Auto Calibrate Phase (`quad-phase`)
 
 **What**

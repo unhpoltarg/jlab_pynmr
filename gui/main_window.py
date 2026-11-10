@@ -699,14 +699,22 @@ class ExitDialog(QDialog):
         QBtn = QDialogButtonBox.Ignore | QDialogButtonBox.Abort
         self.buttonBox = QDialogButtonBox(QBtn)
         # >>> UNH-HOOK exit-guard: say plainly what each button does (Ignore closes mid-sweep; Abort keeps running)
-        self.buttonBox.button(QDialogButtonBox.Ignore).setText("Ignore. I am an expert and I understand the consequences.")
-        self.buttonBox.button(QDialogButtonBox.Abort).setText("Abort! I didn't mean to make this appear!")
+        self.buttonBox.button(QDialogButtonBox.Ignore).setText("Ignore.\nI am an expert and\nI understand the consequences.")
+        self.buttonBox.button(QDialogButtonBox.Abort).setText("Abort!\nI didn't mean to\nmake this appear!")
+        for button in self.buttonBox.buttons():
+            button.setStyleSheet('padding: 8px 18px;')    # each line is centred on the button
+        self.buttonBox.setCenterButtons(True)
         # <<< UNH-HOOK exit-guard
         self.buttonBox.accepted.connect(self.accept)
         self.buttonBox.rejected.connect(self.reject)
 
         self.layout = QVBoxLayout()
         message = QLabel("Exiting the program while sweeps\nare running will require entry to the hall\nto reboot the DAQ. Click 'Abort'\nunless you know what you are doing!")
+        # >>> UNH-HOOK exit-guard: centred message, with room around it and the buttons
+        message.setAlignment(Qt.AlignCenter)
+        self.layout.setContentsMargins(24, 20, 24, 20)
+        self.layout.setSpacing(18)
+        # <<< UNH-HOOK exit-guard
         self.layout.addWidget(message)
         self.layout.addWidget(self.buttonBox)
         self.setLayout(self.layout)

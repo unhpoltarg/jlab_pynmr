@@ -17,7 +17,7 @@ JLab does not need it, so it is kept out of the shared code and can be deleted c
 | `wing-points` | Run tab: "Wing points per side: N" for the wing fit (default from the Analysis-tab bounds), fitted points marked in dashed red | `wing_points.py`, `tests/test_wing_points.py` | `gui/main_window.py` |
 | `mcclellan-fit` | Analysis tab: "Optimized McClellan Fits (Equilibrium)" and "(ssRF)" result options, run by the online fitter's own `FitEngine` (LabView-NMR-Fitter) | `mcclellan.py`, `mcclellan.yaml`, `tests/test_mcclellan.py` | `gui/tabs/analysis_tab.py` |
 | `base-drag` | Baseline tab fixes: selecting rows by dragging (or shift-click, Ctrl-A) updates the selection, not only a click; pressing Set Baseline twice no longer turns the baseline's dates into text (which made every analysis fail) | `tests/test_base_drag.py` | `gui/tabs/base_tab.py` |
-| `exit-guard` | Clearer button labels on the exit-while-running dialog | none | `gui/main_window.py` |
+| `exit-guard` | Exit-while-running dialog: clearer three-line button labels, centred text, sized to fit | none | `gui/main_window.py` |
 | `te-fix` | TE calibration fixes: the report goes to `te_dir` (created if needed), the Run-tab CC box shows the CC in use, and a TE without temperature readings is refused | `tests/test_te_fix.py` | `core/calculations.py`, `gui/tabs/te_tab.py`, `gui/main_window.py` |
 | `fork-tools` | Repository tooling for the fork (local Claude Code notes) | none | `.gitignore` |
 
