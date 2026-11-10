@@ -15,6 +15,25 @@ Conventions:
 
 ## 2026-11-10
 
+### Phase Tune Control follows Auto Tune and Auto Calibrate Phase (`quad-phase`)
+
+**What**
+- `unh/quadrature/ui.py`: each scan step shows its phase DAC setting on the Tune tab's Phase Tune spinbox and
+  slider (shown only, not sent). The Phase and Diode Tune controls are locked while the scan runs. At the end
+  they show the tune the box was left at, and unlock (unless a run is going, as JLab has them).
+- `unh/quadrature/controller.py` (`on_cal_finished`): the Tune tab's stored DAC write becomes the tune the scan
+  left the box at, so a resumed Tune loop re-sends that.
+- New `unh/tests/test_autotune_display.py`. Checked in the real GUI on TestSimQuad: 20 settings shown during
+  the scan, controls locked, and the resumed Tune loop wrote the new Real tune (23.79 %, not the old 25.80 %).
+- Technote: quick-start Sweeps per Event default is now N = 1 (missed on 2026-11-10 morning); notes on the
+  Phase Tune display.
+
+**Why**
+- Ells: during Auto Tune the Phase Tune bar and number didn't move, which could confuse operators.
+- Bug found on the way: after Auto Tune the resumed Tune loop wrote the pre-Auto-Tune phase value back to the
+  box. The display and the runs used the new tune, but the Tune plots showed the old one until a knob was touched.
+- A knob moved mid-scan would have written the box on a second connection and changed the stored tune.
+
 ### Tune runs continuously again; Run tab starts at 64 sweeps (`sweep-blocks`)
 
 **What**
