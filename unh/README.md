@@ -11,7 +11,7 @@ JLab does not need it, so it is kept out of the shared code and can be deleted c
 | `data-streamer` | Send each finished event to LabView-NMR-Fitter (below) | `data_streamer.py`, `data_streamer.yaml`, `tests/test_data_streamer.py` | `gui/main_window.py` |
 | `nmr-sim` | Simulated deuteron NMR as a Test data source, profile `TestSim` ([nmr_sim/README.md](nmr_sim/README.md)) | `nmr_sim/` | `hardware/daq.py`, `pynmr_config.yaml`, `.gitignore` |
 | `daq-link` | Close the FPGA box connections cleanly, stop the box after errors, log box errors (see below) | `tests/test_daq_link.py` | `hardware/tcp.py`, `hardware/udp.py`, `hardware/daq.py`, `gui/tabs/run_tab.py`, `gui/tabs/tune_tab.py`, `pynmr_config.yaml` |
-| `lab-env` | Run instructions for the UNH DAQ computer: `conda activate pynmr312` (see below) | none | `README.md` |
+| `lab-env` | UNH DAQ computer: `conda activate pynmr312`, and Qt's xcb backend inside WSL (see below) | `lab_env.py`, `tests/test_lab_env.py` | `README.md`, `pynmr_main.py` |
 | `quad-phase` | Both NMR quadratures: Real/Imag Phase Tunes alternated between events, plus a phase-DAC calibration (below) | `quadrature/`, `tests/test_quadrature.py` | `gui/main_window.py`, `gui/tabs/run_tab.py`, `gui/tabs/base_tab.py`, `pynmr_config.yaml`, `.gitignore` |
 | `sweep-blocks` | Sweep counts as a fixed 64 × N: Run-tab Sweeps per Event (N default 1), Tune-tab running average (N default 1); 64-sweep tune chunks with a 5 s tune timeout | `sweep_blocks.py`, `tests/test_sweep_blocks.py` | `config/config.py`, `gui/tabs/run_tab.py`, `gui/tabs/tune_tab.py`, `pynmr_config.yaml` |
 | `wing-points` | Run tab: "Wing points per side: N" for the wing fit (default from the Analysis-tab bounds), fitted points marked in dashed red | `wing_points.py`, `tests/test_wing_points.py` | `gui/main_window.py` |
@@ -196,6 +196,12 @@ silently in the middle of runs, most often with the data streamer on. The cause 
 plots. Python 3.12 never deallocates None (PEP 683), so that crash can't happen there. Since PyNMR died mid-sweep,
 the deuteron box was left stuck until it was power cycled. The `daq-link` change does not prevent this; the
 Python 3.12 env does.
+
+Inside WSL, PyNMR sets `QT_QPA_PLATFORM=xcb` itself at startup (`lab_env.py`, called from `pynmr_main.py`), so plain
+`python pynmr_main.py` works. Under WSLg the drop-down lists (Event Label, the Quadrature sequence) were sometimes not
+drawn, though clicks still landed on them; Qt's xcb backend draws them. It does nothing outside WSL, without an X
+display, or when `QT_QPA_PLATFORM` is already set (set it to choose another backend).
+
 ## Quadrature phase stepping (`quadrature/`)
 
 This feature records both quadratures of the NMR signal. The operator sets two Phase Tunes, Real and Imag.
