@@ -15,6 +15,18 @@ Conventions:
 
 ## 2026-11-10
 
+### Drop-down lists drawn reliably on the DAQ computer (`lab-env`)
+
+**What**
+- New `unh/lab_env.py`, called from `pynmr_main.py` (UNH-HOOK lab-env) before the QApplication is made: inside
+  WSL it sets `QT_QPA_PLATFORM=xcb`, unless that is already set or there is no X display. Elsewhere it does nothing.
+- `unh/tests/test_lab_env.py`; `unh/strip_unh.py` and `unh/README.md` list the new files.
+
+**Why**
+- Ells: on the DAQ computer (PyNMR in WSL) the Event Label and Quadrature drop-downs were sometimes invisible,
+  though clicks landed on their items. `QT_QPA_PLATFORM=xcb python pynmr_main.py -p Deuteron` fixed it; this
+  makes it the default there, so operators run PyNMR as before.
+
 ### Exit-while-running dialog laid out more clearly (`exit-guard`)
 
 **What**

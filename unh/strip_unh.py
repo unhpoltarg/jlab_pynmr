@@ -48,8 +48,8 @@ FEATURES = {
         'paths': ['unh/tests/test_daq_link.py'],
     },
     'lab-env': {
-        'about': 'Run instructions for the UNH DAQ computer (conda env pynmr312, Python 3.12+)',
-        'paths': [],
+        'about': 'UNH DAQ computer: conda env pynmr312 (Python 3.12+); Qt xcb backend inside WSL',
+        'paths': ['unh/lab_env.py', 'unh/tests/test_lab_env.py'],
     },
     'quad-phase': {
         'about': 'Both NMR quadratures: Real/Imag Phase Tunes alternated between events, phase-DAC calibration',

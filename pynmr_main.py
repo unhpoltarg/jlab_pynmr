@@ -61,6 +61,13 @@ def main():
         elif opt in ['-p']:
             profile = arg
 
+    # >>> UNH-HOOK lab-env: inside WSL use Qt's xcb backend; WSLg sometimes doesn't draw drop-down lists
+    try:
+        from unh.lab_env import prefer_xcb_on_wsl
+        prefer_xcb_on_wsl()
+    except ImportError:
+        pass
+    # <<< UNH-HOOK lab-env
     app = QApplication(sys.argv)
     app.setApplicationName("JLab Polarization Display")
 
