@@ -648,6 +648,11 @@ class QuadController:
 
     def on_cal_finished(self):
         self.mw.run_toggle()             # re-enables the Run and Tune buttons as JLab does after a run
+        tune = self.mw.tune_tab
+        # The scan left the phase DAC at config.phase_vout (Auto Tune's new tune, or where a calibration started).
+        # The Tune loop re-sends the Tune tab's last DAC write when it starts, so make that this value, not the
+        # setting from before the scan.
+        tune.dac_v, tune.dac_c = float(self.mw.config.phase_vout), 1
         if getattr(self, '_resume_tune', False):
             self._resume_tune = False
             tune = self.mw.tune_tab
@@ -655,6 +660,7 @@ class QuadController:
             tune.run_pushed()            # back to the tune loop Auto Tune interrupted
         if self.ui:
             self.ui.refresh()
+            self.ui.scan_finished()
 
 
 def summary_line(rec):

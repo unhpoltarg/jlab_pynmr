@@ -18,6 +18,25 @@ from .controller import summary_line
 from .settings import SEQUENCES, sequence_name
 
 ANGLE_NAMES = {0: 'Real (0°)', 90: 'Imag (90°)', 180: '180°', 270: '270°'}
+TUNE_KNOBS = ('phase_spin', 'phase_slider', 'diode_spin', 'diode_slider')
+
+
+def show_phase_dac(tune, vout):
+    """Show a phase DAC value (0 to 1) on the Tune tab's Phase Tune Control without sending it to the box."""
+    for w, value in ((tune.phase_spin, vout * 100), (tune.phase_slider, int(round(vout * 1000)))):
+        w.blockSignals(True)
+        w.setValue(value)
+        w.blockSignals(False)
+
+
+def lock_tune_knobs(tune, locked, run_going=False):
+    """Lock the Phase and Diode Tune controls while Auto Tune or a calibration owns the DAC: a knob moved then
+    would write the box on a second connection mid-scan. Unlocking leaves them locked while a run is going, as
+    JLab's run_toggle has them."""
+    for name in TUNE_KNOBS:
+        w = getattr(tune, name, None)
+        if w is not None:
+            w.setEnabled(not locked and not run_going)
 
 
 class QuadPlots:
@@ -355,10 +374,18 @@ class QuadUI:
     def cal_started(self):
         self._scan_view('Calibration: mean output vs Phase DAC (%)')
         self.cal_label.setText('Calibrating: connecting...')
+        lock_tune_knobs(self.ctrl.mw.tune_tab, True)
 
     def autotune_started(self):
         self._scan_view('Auto Tune: mean output vs Phase DAC (%)')
         self.cal_label.setText('Auto Tune: connecting...')
+        lock_tune_knobs(self.ctrl.mw.tune_tab, True)
+
+    def scan_finished(self):
+        """After Auto Tune or a calibration: show the tune the box was left at, and unlock the controls."""
+        mw = self.ctrl.mw
+        show_phase_dac(mw.tune_tab, float(mw.config.phase_vout))
+        lock_tune_knobs(mw.tune_tab, False, run_going=mw.run_in_progress())
 
     def cal_progress(self, data, what='Calibrating'):
         step, of, vout, t = data['step'], data['of'], data['vout'], data.get('t_s', 0.0)
@@ -369,6 +396,7 @@ class QuadUI:
             timing = f'{t:.0f} s elapsed.'
         self.cal_label.setText(f'{what}: step {step} of {of} (phase DAC {vout * 100:.2f} %), {timing}')
         tune = self.ctrl.mw.tune_tab                     # the step's sweep on the Diode and Phase Signal plots
+        show_phase_dac(tune, vout)                       # and the DAC setting being measured, on Phase Tune Control
         freqs = np.asarray(self.ctrl.mw.config.freq_list, dtype=float)
         for key, plot in (('diode', tune.diode_plot), ('phase', tune.phase_plot)):
             y = data.get(key)
@@ -499,10 +527,7 @@ class QuadUI:
         self.radios[self.ctrl.selected].setChecked(True)
         if v is None:
             return
-        for w, value in ((tune.phase_spin, v * 100), (tune.phase_slider, int(v * 1000))):
-            w.blockSignals(True)
-            w.setValue(value)
-            w.blockSignals(False)
+        show_phase_dac(tune, v)
 
     # -- state -----------------------------------------------------------------
     def refresh(self):

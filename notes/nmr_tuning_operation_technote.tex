@@ -70,12 +70,14 @@ python pynmr_main.py -p Deuteron
 \end{verbatim}
 \item \mk{2} \textbf{Run tab:} set \btn{Center Freq} (the Larmor frequency) and \btn{Half-width}, then \btn{Apply Window}.
   (In the \code{TestSimQuad} simulator the \btn{Event Label} also drives the target: None/Baseline, TE, Polarize, Junk.)
-\item \mk{3} \textbf{Sweeps per Event} $=64\times N$: \btn{Unlock}, set $N$ (default 10), \btn{Set}.
+\item \mk{3} \textbf{Sweeps per Event} $=64\times N$: \btn{Unlock}, set $N$ (default 1), \btn{Set}.
 \item \mk{4} \textbf{Tune tab:} \btn{Run} the tune loop and tune the tank with \btn{Diode Tune Control}.
 \item \mk{5} \textbf{Rough phase tunes:} select \btn{Real (0°)} and set the \btn{Phase Tune} by eye so the Q-curve looks
   absorptive; select \btn{Imag (90°)} and set it about a quarter turn away (cycle4: also $180^\circ$, $270^\circ$).
   Within about $30^\circ$ is enough. Last cooldown's tunes are loaded as defaults.
-\item \mk{6} \textbf{Auto Tune} (about 50~s; the tune loop pauses and restarts by itself).
+\item \mk{6} \textbf{Auto Tune} (about 50~s; the tune loop pauses and restarts by itself). While it scans,
+  \btn{Phase Tune Control} shows the setting being measured and the tune controls are locked; at the end
+  it shows the new tune.
 \item \mk{7} \textbf{Check} the result line (how far each tune was off, $\pm$ error) and the trace plot. Wrong?
   \btn{Undo Auto Tune}.
 \item \mk{8} \textbf{Auto Calibrate Phase} (about 90~s), only at the start of a cooldown, after an RF hardware change,
@@ -429,6 +431,7 @@ range, and where the shifter stops responding. Use it:
 \end{itemize}
 Calibrations are saved in \code{<event\_dir>/quad\_cal/<time>.json} during the scan, so a stop or a crash loses
 nothing; \btn{Stop} ends it after the current step without fitting. Don't close PyNMR until the line says done.
+As with \btn{Auto Tune}, \btn{Phase Tune Control} follows the scan and the tune controls are locked until it ends.
 
 %=====================================================================================================
 \section{Taking quadrature data}

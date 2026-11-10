@@ -221,6 +221,8 @@ Calibration files go to `<event_dir>/quad_cal/`.
   Real/Imag take 13 + 13 steps of 64 sweeps, about 50 s on the box.
 - The result line gives how far each hand tune was off and each tune's detector gain relative to Real.
   The plot shows the trace with the 0° and 90° directions. **Undo Auto Tune** puts the old tunes back.
+- While Auto Tune or Auto Calibrate Phase scans, Phase Tune Control shows the setting being measured (not sent)
+  and the Phase and Diode Tune controls are locked; at the end it shows the tune the box was left at.
 - Records go to `quad_cal/autotune_<time>.json` and are never taken for a calibration.
 
 **Run-tab plots** while Quadrature is ticked: a grid replaces JLab's three plots.
